@@ -1,0 +1,572 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Penalty Box Configurator – Interactive Mockup (v10.3.12 – Multi‑select picker + Template mode removed + GV IP sync)</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --panel-2:#1f2430; --text:#e6e9ef; --muted:#a5adcb; --accent:#7aa2f7; --ok:#73daca; --warn:#e0af68; --err:#f7768e; --badge:#2b3245; --btn:#2d3344; --btn-h:#3b435a; --link:#86aaec; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
+  header{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid #222635;background:#11141a;position:sticky;top:0;z-index:3}
+  header h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.3px}
+  .toolbar{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+  button,.btn{background:var(--btn);color:var(--text);border:1px solid #2b3040;border-radius:6px;padding:8px 10px;cursor:pointer;font-size:13px}
+  button:hover,.btn:hover{background:var(--btn-h)}
+  .btn-primary{background:#26406b;border-color:#2f4d81}
+  .btn-primary:hover{background:#315587}
+  .btn-danger{background:#5a2330;border-color:#6b2a39}
+  .btn-danger:hover{background:#6b2a39}
+  .layout{display:grid;grid-template-columns:280px 1fr 380px;gap:12px;padding:12px}
+  .panel{background:var(--panel);border:1px solid #22283a;border-radius:10px;padding:12px}
+  .panel h2{font-size:14px;margin:0 0 8px 0;font-weight:600;color:var(--muted)}
+  .list{display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 190px);overflow:auto;padding-right:4px}
+  .list-item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;background:var(--panel-2);border:1px solid #2b3245;cursor:pointer}
+  .list-item:hover{border-color:#3a445f}
+  .list-item.active{outline:2px solid var(--accent)}
+  .badge{padding:2px 6px;border-radius:999px;font-size:11px;background:var(--badge);color:var(--muted)}
+  .badge.ok{background:#0f1a12;color:#73daca;border:1px solid #1e3b2d}
+  .badge.warn{background:#2a2512;color:#e0af68;border:1px solid #4a3f1e}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  label{font-size:12px;color:var(--muted)}
+  select,input[type="text"],input[type="number"],textarea{background:#0f1320;color:var(--text);border:1px solid #2b3245;border-radius:6px;padding:8px;font-size:13px}
+  input[type="checkbox"]{transform:translateY(1px)}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .section{border-top:1px dashed #2b3245;margin-top:10px;padding-top:10px}
+  .muted{color:var(--muted);font-size:12px}
+  .pill{padding:6px 8px;background:#0f1320;border:1px solid #2b3245;border-radius:6px;font-size:12px}
+  .kv{display:grid;grid-template-columns:160px 1fr;gap:6px;align-items:center}
+  .status-item{background:var(--panel-2);border:1px solid #2b3245;border-radius:8px;padding:8px;margin-bottom:8px}
+  .status-item .title{font-weight:600;font-size:13px}
+  .footer{text-align:center;color:var(--muted);font-size:12px;padding:12px}
+  .search{width:100%}
+  .toolbar-inline{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .stack{display:flex;flex-direction:column;gap:8px}
+  .table{width:100%;border-collapse:collapse;font-size:13px}
+  .table th,.table td{border-bottom:1px solid #2b3245;padding:6px 8px;text-align:left;vertical-align:top}
+  .table th{color:var(--muted);font-weight:600}
+  .link{color:var(--link);cursor:pointer;text-decoration:underline}
+  dialog{border:1px solid #2b3245;background:var(--panel);color:var(--text);border-radius:10px;padding:0;width:1000px;max-width:96vw}
+  dialog header{padding:12px 14px;border-bottom:1px solid #2b3245;background:var(--panel-2)}
+  dialog .content{padding:12px}
+  dialog .actions{padding:12px;border-top:1px solid #2b3245;display:flex;gap:8px;justify-content:flex-end}
+  .small{font-size:12px}
+  .code{background:#0b0f1a;border:1px solid #20283e;padding:8px;border-radius:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#cbd5f7;white-space:pre-wrap}
+  .listbox{height:240px; width:100%; background:#0f1320; border:1px solid #2b3245; border-radius:6px; padding:6px; overflow:auto;}
+  .listbox .itm{padding:6px 8px; border-bottom:1px dashed #232a3d; cursor:pointer}
+  .listbox .itm:hover{background:#151a2a}
+  .listbox .itm.sel{background:#1b2336}
+  .state-pill{display:inline-block; padding:2px 6px; border-radius:999px; font-size:11px; margin-left:6px; border:1px solid #2b3245}
+  .state-ok{background:#0f1a12; color:#73daca; border-color:#1e3b2d}
+  .state-warn{background:#2a2512; color:#e0af68; border-color:#4a3f1e}
+  .state-fail{background:#2a1418; color:#f7768e; border-color:#5b2730}
+</style>
+</head>
+<body>
+  <header>
+    <div class="row" style="justify-content:space-between;">
+      <div class="row" style="gap:10px; align-items:center;">
+        <h1>Penalty Box Configurator – <span class="muted">v10.3.12</span></h1>
+        <label style="display:flex; flex-direction:column;">
+          <span class="muted">GV Orbit Server IP</span>
+          <input id="cfgIp" type="text" value="127.0.0.1" placeholder="e.g., 192.168.1.153" />
+        </label>
+      </div>
+      <div class="toolbar">
+        <button id="btnCreate">Create Fav</button>
+        <button id="btnDuplicate">Duplicate</button>
+        <button id="btnUndo">Undo</button>
+        <button id="btnCreateTemplate">Create Template</button>
+        <button id="btnTemplateBrowser">Template Browser</button>
+        <button id="btnGenerate" class="btn-primary">Generate Bundle</button>
+        <button id="btnLoadSample">Load Sample</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="panel">
+      <div class="toolbar-inline">
+        <h2>Favourites</h2>
+        <input class="search" id="searchGroups" placeholder="Search favourites..." />
+      </div>
+      <div class="list" id="groupList"></div>
+    </div>
+
+    <div class="panel" id="editorPanel">
+      <h2>Group Editor</h2>
+      <div class="stack" id="editorEmpty">
+        <div class="muted">Select a favourite (alarm group) to edit, or click <strong>Create Fav</strong>.</div>
+      </div>
+      <div class="stack" id="editor" style="display:none;">
+        <div class="grid-3">
+          <div class="stack">
+            <label>Group Name</label>
+            <input id="groupName" type="text" />
+          </div>
+          <div class="stack">
+            <label>MbyE Identifier</label>
+            <div class="pill" id="groupIdentifier">EM::</div>
+          </div>
+          <div class="stack">
+            <label>Settings Mode</label>
+            <div class="row small">
+              <label><input type="radio" name="settingsMode" id="modeGlobal" value="global"> Global Settings</label>
+              <label><input type="radio" name="settingsMode" id="modeLocal" value="local"> Local Settings</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row" style="justify-content: space-between;align-items:center;">
+            <h3 style="margin:0;font-size:13px;color:var(--muted)">Group-level Devices & Alarms</h3>
+            <div class="row">
+              <input id="grpDevAddr" type="text" placeholder="Device path (e.g., F110:01:01 or Favourites/...)"/>
+              <input id="grpAlarmName" type="text" placeholder="Alarm name (optional)"/>
+              <button id="grpAddDev">Add</button>
+              <button id="grpPickAddr">Alarm Picker…</button>
+            </div>
+          </div>
+          <table class="table" id="grpDevTable">
+            <thead><tr><th>Device Path</th><th>Alarm</th><th>Alarm Path</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="section">
+          <div class="row" style="justify-content: space-between;">
+            <h3 style="margin:0;font-size:13px;color:var(--muted)">Sub-groups</h3>
+            <button id="btnAddSubGroup">Add Sub-group</button>
+          </div>
+          <table class="table" id="subGroupTable">
+            <thead>
+              <tr><th>Name</th><th>Alarm Path</th><th>Template</th><th>Devices/Alarms</th><th>Children</th><th></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="section grid-3">
+          <div class="stack">
+            <label>In Error State</label>
+            <select id="inErrorState">
+              <option value="50">Minor / WARN (50)</option>
+              <option value="75">Major (75)</option>
+              <option value="100">Critical / FAIL (100)</option>
+            </select>
+          </div>
+          <div class="stack">
+            <label>Error Positions (top-N)</label>
+            <input id="errorPositions" type="number" min="1" max="50" value="2" />
+          </div>
+          <div class="stack">
+            <label>Sorting</label>
+            <div class="row">
+              <select id="primarySort"><option>Priority</option><option>State</option><option>Date (Newest First)</option><option>Address</option></select>
+              <select id="secondarySort"><option>State</option><option>Priority</option><option>Date (Newest First)</option><option>Address</option></select>
+              <select id="tertiarySort"><option>Date (Newest First)</option><option>Priority</option><option>State</option><option>Address</option></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="grid-2">
+            <div class="stack">
+              <label>Local Settings (overrides Global when selected)</label>
+              <div class="kv">
+                <div>Layout Orientation</div>
+                <select id="lvOrientation"><option>Vertical</option><option>Horizontal</option></select>
+                <div>Cell Spacing</div>
+                <input id="lvCellSpacing" type="number" min="0" max="64" value="8" />
+                <div>Enable Latching</div>
+                <input id="lvLatching" type="checkbox" checked />
+                <div>Item Size</div>
+                <input id="lvItemSize" type="number" value="320"/>
+                <div>Show Address</div>
+                <div class="row"><input id="lvShowAddr" type="checkbox" checked/><label for="lvShowAddr">Show Address</label></div>
+                <div>Show Priority</div>
+                <div class="row"><input id="lvShowPrio" type="checkbox" checked/><label for="lvShowPrio">Show Priority</label></div>
+                <div>Show Timestamp</div>
+                <div class="row"><input id="lvShowTs" type="checkbox" checked/><label for="lvShowTs">Show Timestamp</label></div>
+              </div>
+            </div>
+            <div class="stack">
+              <label>Identifier & Preview</label>
+              <div class="code" id="previewCode">// Behaviour preview will appear here</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <button class="btn-primary" id="btnSaveGroup">Save Group</button>
+          <button class="btn-danger" id="btnDeleteGroup">Delete Group</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel right-form">
+      <h2>Global Settings</h2>
+      <div class="kv">
+        <div>Layout Orientation</div>
+        <select id="g_pvOrientation"><option>Vertical</option><option>Horizontal</option></select>
+        <div>Cell Spacing</div>
+        <input id="g_pvCellSpacing" type="number" min="0" max="64" value="8" />
+        <div>Enable Latching</div>
+        <input id="g_pvLatching" type="checkbox" checked />
+        <div>Item Size</div>
+        <input id="g_pvItemSize" type="number" value="320"/>
+        <div>Show Address</div>
+        <input id="g_pvShowAddr" type="checkbox" checked />
+        <div>Show Priority</div>
+        <input id="g_pvShowPrio" type="checkbox" checked />
+        <div>Show Timestamp</div>
+        <input id="g_pvShowTs" type="checkbox" checked />
+        <div>Master Penalty Box Slots</div>
+        <input id="g_masterSlots" type="number" min="1" max="100" value="10" />
+      </div>
+      <div class="section">
+        <h2>Validation & Status</h2>
+        <div class="status-item"><div class="title">Project Validation</div><div class="muted small" id="statusProject">No favourites yet.</div></div>
+        <div class="status-item"><div class="title">Selected Group</div><div class="muted small" id="statusGroup">None selected.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">10.3.12: Multi-select Alarm Picker (devices & alarms), Create Template mode removed, Template Browser auto-uses GV IP. HTTP bridge required (not SSH).</div>
+
+  <!-- Create Template dialog (no mode) -->
+  <dialog id="dlgCreateTemplate">
+    <header><strong>Create Local Template (from devices/alarms)</strong></header>
+    <div class="content stack">
+      <label>Name<input id="ctName" type="text" placeholder="MyTemplate.tmpl"/></label>
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <div class="muted small">Pick multiple devices/alarms to convert into headers.</div>
+        <button id="ctPick">Alarm Picker…</button>
+      </div>
+      <table class="table" id="ctHeaderTable"><thead><tr><th>Header</th><th>Source Path</th><th></th></tr></thead><tbody></tbody></table>
+      <div class="row small">
+        <input id="ctManualHeader" type="text" placeholder="Add manual header (e.g., HEALTH)"/>
+        <button id="ctAddManual">Add Header</button>
+      </div>
+      <div class="muted small">Headers derive from alarm names (preferred) or last device path segment.</div>
+    </div>
+    <div class="actions"><button id="ctCancel">Cancel</button><button id="ctOk" class="btn-primary">Save Template</button></div>
+  </dialog>
+
+  <!-- Duplicate dialog -->
+  <dialog id="dlgDuplicate">
+    <header><strong>Duplicate Favourite(s)</strong></header>
+    <div class="content stack">
+      <div class="grid-3">
+        <div class="stack"><label>Base Name</label><input id="dupBaseName" type="text" placeholder="Channel %d"/></div>
+        <div class="stack"><label>Count (1-999)</label><input id="dupCount" type="number" min="1" max="999" value="3"/></div>
+        <div class="stack"><label>Structure Only</label><input id="dupStructureOnly" type="checkbox"/></div>
+      </div>
+      <div class="muted small">Supports %d / %x and zero‑padded %0Nd (e.g., %02d).</div>
+    </div>
+    <div class="actions"><button id="dupCancel">Cancel</button><button id="dupOk" class="btn-primary">Duplicate</button></div>
+  </dialog>
+
+  <!-- Sub-group editor -->
+  <dialog id="dlgSubGroup">
+    <header><strong>Edit Sub-group</strong></header>
+    <div class="content stack">
+      <div class="grid-2">
+        <div class="stack"><label>Name</label><input id="sgName" type="text"/></div>
+        <div class="stack"><label>Alarm Path (auto)</label><input id="sgFav" type="text" readonly/></div>
+      </div>
+      <div class="grid-2">
+        <div class="stack"><label>Template</label><div class="row"><input id="sgTemplate" type="text" placeholder="Servers.tmpl"/><button id="sgPickTemplate">Pick…</button></div></div>
+        <div class="stack"><label>Add Address</label><div class="row"><input id="sgDevAddr" type="text" placeholder="Device path"/><input id="sgAlarmName" type="text" placeholder="Alarm name (optional)"/><button id="sgPickAddr">Alarm Picker…</button><button id="sgAddDev">Add</button></div></div>
+      </div>
+      <table class="table" id="sgDevTable"><thead><tr><th>Device Path</th><th>Alarm</th><th></th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="actions"><button id="sgCancel">Cancel</button><button id="sgOk" class="btn-primary">Save</button></div>
+  </dialog>
+
+  <!-- Template Picker (sub-group) -->
+  <dialog id="dlgPickTemplate">
+    <header><strong>Pick Template</strong></header>
+    <div class="content stack">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <input id="tplPickSearch" class="search" placeholder="Search templates..."/>
+        <div class="row small">
+          <label><input type="checkbox" id="tplIncludeProject"/> Include Project</label>
+          <label><input type="checkbox" id="tplIncludeLocal" checked/> Include Local</label>
+        </div>
+      </div>
+      <div class="listbox" id="tplPickList"></div>
+    </div>
+    <div class="actions"><button id="tplPickCancel">Cancel</button><button id="tplPickChoose" class="btn-primary">Choose</button></div>
+  </dialog>
+
+  <!-- Alarm Picker (shared) -->
+  <dialog id="dlgAlarmPicker">
+    <header><strong>Alarm Picker</strong></header>
+    <div class="content stack">
+      <div class="row" style="justify-content:space-between;align-items:center;">
+        <input id="apSearchDevice" class="search" placeholder="Filter devices (supports paths like Favourites/...)"/>
+        <div class="row small">
+          <label>Alarm filter <input id="apNameFilter" type="text" placeholder="optional, e.g., CPU_*_TEMP"/></label>
+          <button id="apReloadDevices">Reload Devices</button>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div>
+          <label class="small">Devices</label>
+          <div class="listbox" id="apDeviceList"></div>
+        </div>
+        <div>
+          <label class="small">Alarms in selected device</label>
+          <div class="listbox" id="apAlarmList"></div>
+        </div>
+      </div>
+    </div>
+    <div class="actions"><button id="apCancel">Cancel</button><button id="apChoose" class="btn-primary">Add Selected</button></div>
+  </dialog>
+
+  <!-- Template Browser (global, HTTP only) -->
+  <dialog id="dlgTemplateBrowser">
+    <header><strong>Template Browser</strong></header>
+    <div class="content stack">
+      <div class="row" style="gap:8px;align-items:flex-end;">
+        <div style="flex:1">
+          <label class="small">Base URL (auto: http://&lt;GV-IP&gt;:8080)<input id="tbBaseUrl" type="text" placeholder="http://192.168.1.153:8080"/></label>
+        </div>
+        <div class="pill" id="tbAutoIp">Using GV IP</div>
+      </div>
+      <div class="row" style="gap:8px;align-items:flex-end;">
+        <label>User (optional)<input id="tbUser" type="text" placeholder="root"/></label>
+        <label>Password (optional)<input id="tbPass" type="password" placeholder="••••"/></label>
+        <button id="tbLoadRepos">Load Repos</button>
+      </div>
+      <div class="grid-2">
+        <div>
+          <label class="small">Repos</label>
+          <div class="listbox" id="tbRepoList"></div>
+        </div>
+        <div>
+          <label class="small">Templates</label>
+          <div class="listbox" id="tbTplList"></div>
+        </div>
+      </div>
+      <div class="code" id="tbView">No template selected. Browser fetch requires HTTP(S) and CORS; SSH (port 2222) cannot be used directly by the Template Browser.</div>
+    </div>
+    <div class="actions"><button id="tbClose">Close</button></div>
+  </dialog>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+    const bind = (sel, event, handler) => { const el=$(sel); if(!el){ console.warn('Missing element', sel); return; } el.addEventListener(event, handler); };
+    const dlg = (sel, cmd) => { const d=$(sel); if(!d){ console.warn('Missing dialog', sel); return; } if(cmd==='open') d.showModal(); else d.close(); };
+
+    const state = {
+      apiBase: 'http://127.0.0.1:9099/alarmapi/v1',
+      groups:[], sel:null, lastAction:null,
+      projectVars:{ orientation:'Vertical', cellSpacing:8, latching:true, itemSize:320, showAddr:true, showPrio:true, showTs:true },
+      master:{ id:'EM::Penalty Box', inError:50, errorPositions:10, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'} },
+      templates:[{ name:'Servers.tmpl', headers:['CPU','HEALTH','NETWORK'] }],
+      projectTemplates:[], editingCtx:null, _devices:[], _alarms:[],
+      tplApi:{ base:'', user:'', pass:'' },
+      ctHeaders:[],
+    };
+
+    const uid=()=>Math.random().toString(36).slice(2,9);
+    const escapeHtml=(str)=> (str||'').replace(/[&<>"']/g, s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[s]));
+    const autoFavPath=(groupName, parts)=> ['Favourites', groupName, ...parts.filter(Boolean)];
+    const toast=(msg)=> alert(msg);
+    const download=(filename,text)=>{ const a=document.createElement('a'); a.href='data:application/json;charset=utf-8,'+encodeURIComponent(text); a.download=filename; a.click(); };
+
+    function recomputeApiBase(){ const ip=($('#cfgIp').value||'').trim()||'127.0.0.1'; state.apiBase = `http://${ip}:9099/alarmapi/v1`; const tbBase = `http://${ip}:8080`; const pill=$('#tbAutoIp'); if(pill){ pill.textContent = `Using GV IP: ${tbBase}`; pill.title='Template Browser defaults to this base URL'; } }
+    bind('#cfgIp','input', recomputeApiBase); recomputeApiBase();
+
+    async function apiGet(path){ const url = state.apiBase + path; const res = await fetch(url, { headers: { 'Accept':'application/json' } }); if(!res.ok) throw new Error('HTTP '+res.status+' '+url); return res.status===204? null : await res.json(); }
+
+    function renderGroups(filter=''){
+      const list=$('#groupList'); list.innerHTML=''; const q=(filter||'').toLowerCase();
+      state.groups.filter(g=>!q||g.name.toLowerCase().includes(q)).forEach(g=>{
+        const div=document.createElement('div'); div.className='list-item'+(g===state.sel?' active':'');
+        const v=validateGroup(g); const badge=document.createElement('span'); badge.className='badge '+(v.ok?'ok':'warn'); badge.textContent=v.ok?'Complete':'Incomplete';
+        const name=document.createElement('div'); name.textContent=g.name; name.style.flex='1';
+        div.appendChild(badge); div.appendChild(name); div.onclick=()=>{ state.sel=g; openEditor(g); renderGroups($('#searchGroups').value); };
+        list.appendChild(div);
+      });
+      const sp=$('#statusProject'); if(sp) sp.textContent = state.groups.length ? `${state.groups.length} favourite(s). Master slots: ${state.master.errorPositions}` : 'No favourites yet.';
+    }
+
+    function openEditor(g){ $('#editorEmpty').style.display='none'; $('#editor').style.display='';
+      $('#groupName').value=g.name; $('#groupIdentifier').textContent=`EM::${g.name}`;
+      const useGlobal=(g.useGlobalSettings!==false); $('#modeGlobal').checked=useGlobal; $('#modeLocal').checked=!useGlobal; setLocalControlsEnabled(!useGlobal);
+      $('#inErrorState').value=String(g.inError??50); $('#errorPositions').value=g.errorPositions??2; $('#primarySort').value=g.sorts?.p??'Priority'; $('#secondarySort').value=g.sorts?.s??'State'; $('#tertiarySort').value=g.sorts?.t??'Date (Newest First)';
+      const src = useGlobal ? state.projectVars : (g.localSettings || state.projectVars);
+      $('#lvOrientation').value=src.orientation; $('#lvCellSpacing').value=src.cellSpacing; $('#lvLatching').checked=src.latching; $('#lvItemSize').value=src.itemSize; $('#lvShowAddr').checked=src.showAddr; $('#lvShowPrio').checked=src.showPrio; $('#lvShowTs').checked=src.showTs;
+      renderGroupDevices(g); renderSubGroups(g); renderPreview(g); const sg=$('#statusGroup'); if(sg) sg.textContent=validateGroup(g).msg;
+    }
+
+    function setLocalControlsEnabled(enabled){ ['lvOrientation','lvCellSpacing','lvLatching','lvItemSize','lvShowAddr','lvShowPrio','lvShowTs'].forEach(id=>{ const el=$('#'+id); if(el){ el.disabled=!enabled; const box=el.closest('div'); if(box) box.style.opacity = enabled? '1':'0.6'; }}); }
+
+    function renderGroupDevices(g){ const tbody=$('#grpDevTable tbody'); tbody.innerHTML=''; (g.devices||[]).forEach((d,i)=>{ const alarmPath = autoFavPath(g.name, []).join('/'); const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(d.address)}</td><td>${escapeHtml(d.alarmName||'')}</td><td>${escapeHtml(alarmPath)}</td><td><span class='link' data-del='${i}'>Remove</span></td>`; tbody.appendChild(tr); });
+      tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); g.devices.splice(i,1); renderGroupDevices(g); renderPreview(g); } } }
+
+    function renderSubGroups(g){ const tbody=$('#subGroupTable tbody'); tbody.innerHTML=''; (g.subGroups||[]).forEach((sg,idx)=>{ const childCount=(sg.subGroups||[]).length; const fav=autoFavPath(g.name, sg.__path||[sg.name]).join('/'); const devCount=(sg.devices||[]).length; const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(sg.name||'')}</td><td>${escapeHtml(fav)}</td><td>${escapeHtml(sg.template||'')}</td><td>${devCount}</td><td>${childCount}</td><td><span class='link' data-idx='${idx}'>Edit</span> · <span class='link' data-del='${idx}'>Delete</span></td>`; tbody.appendChild(tr); });
+      tbody.onclick=(e)=>{ if(e.target.matches('[data-idx]')) editSubGroup(parseInt(e.target.getAttribute('data-idx'))); if(e.target.matches('[data-del]')){ const i=parseInt(e.target.getAttribute('data-del')); state.sel.subGroups.splice(i,1); renderSubGroups(state.sel); renderPreview(state.sel); } } }
+
+    function renderPreview(g){ const pre=$('#previewCode'); const lines=[]; lines.push(`Identifier: EM::${g.name}`); lines.push(`In Error State: ${g.inError}`); lines.push(`Error Positions (N): ${g.errorPositions}`); lines.push(`Sort: ${g.sorts.p} / ${g.sorts.s} / ${g.sorts.t}`); lines.push(`Settings: ${g.useGlobalSettings!==false ? 'Global' : 'Local'}`);
+      let itemCount=(g.devices||[]).length; (function count(sgs){ (sgs||[]).forEach(s=>{ itemCount+=(s.devices||[]).length; count(s.subGroups); }); })(g.subGroups); lines.push(`Resolved Items: ${itemCount}`); pre.textContent=lines.join('\n'); }
+
+    function validateGroup(g){ if(!g.name) return {ok:false,msg:'Name required'}; if(state.groups.filter(x=>x!==g && x.name===g.name).length) return {ok:false,msg:'Name must be unique'}; let devices=(g.devices||[]).length; (function count(sgs){(sgs||[]).forEach(s=>{devices+=(s.devices||[]).length; count(s.subGroups);});})(g.subGroups); if(devices===0) return {ok:false,msg:'Add devices or alarms at group or sub-group level'}; return {ok:true,msg:'Complete'}; }
+
+    // Radio bindings
+    bind('#modeGlobal','change',()=>{ if(!state.sel) return; state.sel.useGlobalSettings=true; setLocalControlsEnabled(false); openEditor(state.sel); });
+    bind('#modeLocal','change',()=>{ if(!state.sel) return; state.sel.useGlobalSettings=false; setLocalControlsEnabled(true); openEditor(state.sel); });
+
+    bind('#grpAddDev','click',()=>{ if(!state.sel) return toast('Select a favourite first'); const addr=$('#grpDevAddr').value.trim(); const aName=$('#grpAlarmName').value.trim(); if(!addr) return; if(!state.sel.devices) state.sel.devices=[]; state.sel.devices.push({address:addr, alarmName:aName||null}); $('#grpDevAddr').value=''; $('#grpAlarmName').value=''; renderGroupDevices(state.sel); renderPreview(state.sel); });
+    bind('#grpPickAddr','click',()=>{ if(!state.sel) return toast('Select a favourite first'); apCtx={ target:'group' }; openAlarmPicker(); });
+
+    // Sub-group Add/Edit
+    bind('#btnAddSubGroup','click',()=>{ if(!state.sel) return toast('Select a favourite first'); const node={ name:'New Sub-group', template:'', devices:[], subGroups:[], __path:['New Sub-group'] }; state.editingCtx={ parentArray: state.sel.subGroups, index:-1, node }; openSubGroupDialog(); });
+    function editSubGroup(idx){ state.editingCtx={ parentArray: state.sel.subGroups, index: idx, node: JSON.parse(JSON.stringify(state.sel.subGroups[idx])) }; if(!state.editingCtx.node.__path) state.editingCtx.node.__path=[state.editingCtx.node.name]; openSubGroupDialog(); }
+    function openSubGroupDialog(){ const d=state.editingCtx.node; $('#sgName').value=d.name||''; $('#sgTemplate').value=d.template||''; updateFavPathField(); renderSgDevs(); dlg('#dlgSubGroup','open'); }
+    function updateFavPathField(){ const d=state.editingCtx.node; const pathParts=(d.__path&&d.__path.length? d.__path : [d.name]).filter(Boolean); $('#sgFav').value = autoFavPath(state.sel.name, pathParts).join('/'); }
+    function renderSgDevs(){ const tbody=$('#sgDevTable tbody'); tbody.innerHTML=''; (state.editingCtx.node.devices||[]).forEach((dv,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(dv.address)}</td><td>${escapeHtml(dv.alarmName||'')}</td><td><span class='link' data-del='${i}'>Remove</span></td>`; tbody.appendChild(tr); }); tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); state.editingCtx.node.devices.splice(i,1); renderSgDevs(); } } }
+    bind('#sgAddDev','click',()=>{ const addr=$('#sgDevAddr').value.trim(); const aName=$('#sgAlarmName').value.trim(); if(!addr) return; state.editingCtx.node.devices.push({address:addr, alarmName:aName||null}); $('#sgDevAddr').value=''; $('#sgAlarmName').value=''; renderSgDevs(); });
+    let apCtx={ target:'group' };
+    bind('#sgPickAddr','click',()=>{ apCtx={ target:'subgroup' }; openAlarmPicker(); });
+    bind('#sgCancel','click',()=>{ dlg('#dlgSubGroup','close'); state.editingCtx=null; });
+    bind('#sgOk','click',()=>{ const d=state.editingCtx.node; d.name=$('#sgName').value.trim(); d.template=$('#sgTemplate').value.trim(); if(!d.__path || d.__path.length===0) d.__path=[d.name]; if(state.editingCtx.index>=0) state.editingCtx.parentArray[state.editingCtx.index]=d; else state.editingCtx.parentArray.push(d); dlg('#dlgSubGroup','close'); renderSubGroups(state.sel); renderPreview(state.sel); state.editingCtx=null; });
+
+    // Alarm Picker (multi-select on devices and alarms)
+    bind('#apCancel','click',()=> dlg('#dlgAlarmPicker','close'));
+    async function openAlarmPicker(){ $('#apDeviceList').innerHTML=''; $('#apAlarmList').innerHTML=''; $('#apNameFilter').value=''; $('#apSearchDevice').value=''; dlg('#dlgAlarmPicker','open'); await loadDevices(); }
+    async function loadDevices(){ try{ const devices = await apiGet('/devices'); state._devices = Array.isArray(devices)? devices : []; renderDeviceList(); }catch(e){ toast('Load devices failed: '+e.message); } }
+    function renderDeviceList(){ const box=$('#apDeviceList'); box.innerHTML=''; const q=($('#apSearchDevice').value||'').toLowerCase(); (state._devices||[])
+        .filter(d=> !q || String(d).toLowerCase().includes(q))
+        .forEach(d=>{ const div=document.createElement('div'); div.className='itm'; const isFav = String(d).includes('Favourites/') || String(d).includes('System/');
+          div.innerHTML = `${escapeHtml(d)} ${isFav? '<span class=\"state-pill state-ok\">fav</span>':''}`;
+          // Multi-select toggle (no clearing others)
+          div.onclick=()=>{ div.classList.toggle('sel'); };
+          box.appendChild(div);
+        }); }
+    bind('#apSearchDevice','input', renderDeviceList);
+    bind('#apReloadDevices','click', loadDevices);
+    async function loadDeviceAlarms(path){ const nameFilter = ($('#apNameFilter').value||'').trim(); try{ const enc='?path='+encodeURIComponent(path) + (nameFilter? '&name='+encodeURIComponent(nameFilter):''); const alarms = await apiGet('/alarms'+enc); state._alarms = Array.isArray(alarms)? alarms : []; renderAlarmList(); }catch(e){ toast('Load alarms failed: '+e.message); } }
+    function renderAlarmList(){ const box=$('#apAlarmList'); box.innerHTML=''; (state._alarms||[]).forEach(a=>{ const nm = (a.id && a.id.name) || a.name || ''; const pth = (a.id && a.id.path) || a.path || '';
+      const st = (a.state && a.state.state) || ''; const ts = (a.state && a.state.timestamp) || ''; const val = (a.state && a.state.value) || '';
+      const cls = st==='fail' ? 'state-fail' : (st==='warn'||st==='caution') ? 'state-warn' : 'state-ok';
+      const div=document.createElement('div'); div.className='itm';
+      div.innerHTML = `<strong>${escapeHtml(nm)}</strong> <span class='muted small'>${escapeHtml(pth)}</span>
+        <span class='state-pill ${cls}' title='${escapeHtml(st)}'>${escapeHtml(st||'ok')}</span>
+        <div class='muted small'>${escapeHtml(val)} <span style='margin-left:6px'>${escapeHtml(ts)}</span></div>`;
+      // Multi-select toggle
+      div.onclick=()=>{ div.classList.toggle('sel'); };
+      box.appendChild(div);
+    }); }
+
+    bind('#apChoose','click',()=>{
+      const selDevs = $$('#apDeviceList .itm.sel');
+      const chosenAlarms = $$('#apAlarmList .itm.sel');
+      if(apCtx?.target==='template'){
+        // Add all selected alarms; if none, add selected devices
+        if(chosenAlarms.length){ chosenAlarms.forEach(el=>{ const name=el.querySelector('strong').textContent||''; const path=(el.querySelector('.muted')?.textContent)||''; addCtHeader(name||path, path); }); }
+        else if(selDevs.length){ selDevs.forEach(el=>{ const path=el.textContent.replace(/\s*fav\s*$/,''); const seg = (String(path).split('/').pop()||path); addCtHeader(seg, path); }); }
+        renderCtHeaders(); dlg('#dlgAlarmPicker','close'); return;
+      }
+      if(!state.sel) { dlg('#dlgAlarmPicker','close'); return; }
+      // Group/sub-group: add ALL selected alarms (or all selected devices if no alarms selected)
+      if(apCtx?.target==='group'){
+        if(chosenAlarms.length){ chosenAlarms.forEach(el=>{ const name=el.querySelector('strong').textContent; const path=(el.querySelector('.muted')?.textContent)||''; if(!state.sel.devices) state.sel.devices=[]; state.sel.devices.push({address:path, alarmName:name}); }); }
+        else if(selDevs.length){ selDevs.forEach(el=>{ const path=el.textContent.replace(/\s*fav\s*$/,''); if(!state.sel.devices) state.sel.devices=[]; state.sel.devices.push({address:path}); }); }
+        renderGroupDevices(state.sel); renderPreview(state.sel);
+      } else if(apCtx?.target==='subgroup'){
+        const node = state.editingCtx?.node; if(!node) { dlg('#dlgAlarmPicker','close'); return; }
+        if(chosenAlarms.length){ chosenAlarms.forEach(el=>{ const name=el.querySelector('strong').textContent; const path=(el.querySelector('.muted')?.textContent)||''; if(!node.devices) node.devices=[]; node.devices.push({address:path, alarmName:name}); }); }
+        else if(selDevs.length){ selDevs.forEach(el=>{ const path=el.textContent.replace(/\s*fav\s*$/,''); if(!node.devices) node.devices=[]; node.devices.push({address:path}); }); }
+        renderSgDevs();
+      }
+      dlg('#dlgAlarmPicker','close');
+    });
+
+    function addCtHeader(h, src){ state.ctHeaders.push({ h, src }); }
+    function renderCtHeaders(){ const tbody=$('#ctHeaderTable tbody'); tbody.innerHTML=''; state.ctHeaders.forEach((item,idx)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(item.h)}</td><td class='muted small'>${escapeHtml(item.src||'')}</td><td><span class='link' data-del='${idx}'>Remove</span></td>`; tbody.appendChild(tr); }); tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); state.ctHeaders.splice(i,1); renderCtHeaders(); } } }
+
+    // Duplicate
+    bind('#btnDuplicate','click',()=>{ if(!state.sel) return toast('Select a favourite first'); $('#dupBaseName').value = state.sel.name + ' %d'; $('#dupCount').value = 3; $('#dupStructureOnly').checked = false; dlg('#dlgDuplicate','open'); });
+    bind('#dupCancel','click',()=> dlg('#dlgDuplicate','close'));
+    bind('#dupOk','click',()=>{ if(!state.sel) return; const base=$('#dupBaseName').value.trim(); let count=parseInt($('#dupCount').value||'1',10); count = Math.max(1, Math.min(999, count)); const structureOnly=$('#dupStructureOnly').checked; if(!/%d|%x/i.test(base)) return toast('Base name must include %d or %x');
+      const created=[]; for(let i=1;i<=count;i++){
+        const paddedBase = base.replace(/%0?(\d*)d/gi, (m,p)=> (p? `%0${p}d`:"%d"));
+        const nameDec = paddedBase.replace(/%0?(\d*)d/gi, (m,p)=> String(i).padStart(p?parseInt(p,10):0,'0'));
+        const nameHex = nameDec.replace(/%x/gi, i.toString(16).toUpperCase());
+        const name=nameHex;
+        if(state.groups.find(g=>g.name===name)) continue;
+        const src=state.sel; const dup=JSON.parse(JSON.stringify(src)); dup.id=uid(); dup.name=name; if(structureOnly){ dup.devices=[]; (function clearDevs(sgs){ (sgs||[]).forEach(s=>{ s.devices=[]; clearDevs(s.subGroups); }); })(dup.subGroups);} state.groups.push(dup); created.push(dup.id);
+      }
+      state.lastAction={type:'duplicate',ids:created}; renderGroups(); dlg('#dlgDuplicate','close'); });
+
+    // Create Template – no mode
+    bind('#btnCreateTemplate','click',()=>{ $('#ctName').value=''; state.ctHeaders=[]; renderCtHeaders(); dlg('#dlgCreateTemplate','open'); });
+    bind('#ctCancel','click',()=> dlg('#dlgCreateTemplate','close'));
+    bind('#ctAddManual','click',()=>{ const h=($('#ctManualHeader').value||'').trim(); if(!h) return; addCtHeader(h,'manual'); $('#ctManualHeader').value=''; renderCtHeaders(); });
+    bind('#ctPick','click',()=>{ apCtx={ target:'template' }; openAlarmPicker(); });
+    bind('#ctOk','click',()=>{ const name=$('#ctName').value.trim()||''; const headers=state.ctHeaders.map(x=>x.h).filter(Boolean); if(!name) return toast('Template name required'); if(headers.length===0) return toast('Add at least one header'); const idx=state.templates.findIndex(t=>t.name===name); const tpl={ name, headers }; if(idx>=0) state.templates[idx]=tpl; else state.templates.push(tpl); dlg('#dlgCreateTemplate','close'); toast('Template saved locally'); });
+
+    // Template Picker
+    bind('#sgPickTemplate','click',()=> openPickTemplateDialog());
+    bind('#tplPickCancel','click',()=> dlg('#dlgPickTemplate','close'));
+    bind('#tplPickSearch','input',()=> renderPickTemplateList());
+    bind('#tplPickChoose','click',()=>{ const sel=$('#tplPickList .itm.sel'); if(!sel) return toast('Select a template'); const name=sel.dataset.name; $('#sgTemplate').value=name; dlg('#dlgPickTemplate','close'); });
+    function openPickTemplateDialog(){ const hasProject = state.projectTemplates.length>0; $('#tplIncludeProject').checked=hasProject; $('#tplIncludeProject').disabled=!hasProject; $('#tplIncludeLocal').checked=true; renderPickTemplateList(); dlg('#dlgPickTemplate','open'); }
+    function renderPickTemplateList(){ const box=$('#tplPickList'); box.innerHTML=''; const q=($('#tplPickSearch').value||'').toLowerCase(); const rows=[]; if($('#tplIncludeProject').checked) state.projectTemplates.forEach(t=> rows.push({name:t.name, src:'Project'})); if($('#tplIncludeLocal').checked) state.templates.forEach(t=> rows.push({name:t.name, src:'Local'})); const seen=new Set(); rows.filter(r=> !q || r.name.toLowerCase().includes(q)).sort((a,b)=> a.name.localeCompare(b.name)||a.src.localeCompare(b.src)).forEach(r=>{ const key=r.name+'|'+r.src; if(seen.has(key)) return; seen.add(key); const div=document.createElement('div'); div.className='itm'; div.innerHTML=`<span>${escapeHtml(r.name)}</span> <span class='muted small'>${r.src}</span>`; div.dataset.name=r.name; div.onclick=()=>{ div.classList.toggle('sel'); }; div.ondblclick=()=>{ div.classList.add('sel'); $('#tplPickChoose').click(); }; box.appendChild(div); }); }
+
+    // Template Browser – auto-derive Base URL from GV IP; Basic auth optional
+    bind('#btnTemplateBrowser','click',()=>{ const ip=($('#cfgIp').value||'').trim()||'127.0.0.1'; const base=`http://${ip}:8080`; $('#tbBaseUrl').value = state.tplApi.base || base; $('#tbUser').value = state.tplApi.user || ''; $('#tbPass').value = state.tplApi.pass || ''; renderRepoList([]); $('#tbTplList').innerHTML=''; $('#tbView').textContent='No template selected.'; dlg('#dlgTemplateBrowser','open'); });
+    bind('#tbClose','click',()=> dlg('#dlgTemplateBrowser','close'));
+    bind('#tbLoadRepos','click', async()=>{ const base=($('#tbBaseUrl').value||'').trim(); state.tplApi.base=base; state.tplApi.user=$('#tbUser').value.trim(); state.tplApi.pass=$('#tbPass').value; if(!base) return toast('Enter base URL'); try{ const res = await fetch(base+'/repos', { headers: buildHeaders() }); if(!res.ok) throw new Error('HTTP '+res.status); const repos = await res.json(); renderRepoList(repos); if(!Array.isArray(repos)||!repos.length) toast('No repos returned. Check HTTP bridge and CORS.'); }catch(e){ toast('Load repos failed: '+e.message+'\nHTTP bridge must be reachable (not SSH).'); } });
+    function buildHeaders(){ const h={'Accept':'application/json'}; const u=state.tplApi.user, p=state.tplApi.pass; if(u||p){ const b64 = btoa(`${u}:${p}`); h['Authorization'] = 'Basic '+b64; } return h; }
+    function renderRepoList(repos){ const box=$('#tbRepoList'); box.innerHTML=''; (repos||[]).forEach(r=>{ const div=document.createElement('div'); div.className='itm'; div.innerHTML=`<strong>${escapeHtml(r.name||'unknown')}</strong> <span class='muted small'>${escapeHtml(r.branch||'main')}</span>`; div.dataset.name=r.name; div.dataset.branch=r.branch||'main'; div.onclick=()=>{ div.classList.toggle('sel'); loadTemplatesForRepo(div.dataset.name, div.dataset.branch); }; box.appendChild(div); }); }
+    async function loadTemplatesForRepo(repo, branch){ if(!repo) return; const base=state.tplApi.base; try{ const url = base + `/templates?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch||'main')}`; const res = await fetch(url, { headers: buildHeaders() }); if(!res.ok) throw new Error('HTTP '+res.status); const list = await res.json(); state.projectTemplates = Array.isArray(list)? list.map(t=>({ name: t.name||t.filename||'unknown.tmpl', headers: Array.isArray(t.headers)? t.headers : [] })) : []; renderTplList(list||[]); toast(`Loaded ${state.projectTemplates.length} template(s)`); }catch(e){ toast('Load templates failed: '+e.message+'\nEnsure your HTTP bridge exposes /templates.'); } }
+    function renderTplList(list){ const box=$('#tbTplList'); box.innerHTML=''; (list||[]).forEach(t=>{ const div=document.createElement('div'); div.className='itm'; div.innerHTML=`<strong>${escapeHtml(t.name||t.filename||'unknown.tmpl')}</strong> <span class='muted small'>headers: ${(Array.isArray(t.headers)? t.headers.length:0)}</span>`; div.onclick=()=>{ $('#tbView').textContent = JSON.stringify(t,null,2); div.classList.toggle('sel'); }; box.appendChild(div); }); }
+
+    // Create / Undo / Save / Delete
+    bind('#btnCreate','click',()=> { const name=prompt('Favourite name'); if(!name) return; if(state.groups.find(g=>g.name===name)) return toast('Name must be unique'); const g=newGroup(name); state.groups.push(g); state.lastAction={type:'create',id:g.id}; renderGroups(); state.sel=g; openEditor(g); });
+    bind('#btnUndo','click',()=>{ const a=state.lastAction; if(!a) return; if(a.type==='create') state.groups = state.groups.filter(g=>g.id!==a.id); if(a.type==='duplicate') state.groups = state.groups.filter(g=>!a.ids.includes(g.id)); state.lastAction=null; state.sel=null; renderGroups(); $('#editor').style.display='none'; $('#editorEmpty').style.display=''; });
+    bind('#btnDeleteGroup','click',()=>{ if(!state.sel) return; if(!confirm('Delete favourite '+state.sel.name+'?')) return; state.groups = state.groups.filter(g=>g!==state.sel); state.sel=null; renderGroups(); $('#editor').style.display='none'; $('#editorEmpty').style.display=''; });
+    bind('#btnSaveGroup','click',()=>{ if(!state.sel) return; state.sel.name=$('#groupName').value.trim(); state.sel.inError=Number($('#inErrorState').value); state.sel.errorPositions=Number($('#errorPositions').value); state.sel.sorts={ p:$('#primarySort').value, s:$('#secondarySort').value, t:$('#tertiarySort').value }; renderGroups($('#searchGroups').value); openEditor(state.sel); });
+    bind('#groupName','input',()=>{ if(!state.sel) return; $('#groupIdentifier').textContent='EM::'+$('#groupName').value.trim(); });
+    bind('#searchGroups','input',(e)=> renderGroups(e.target.value));
+
+    function newGroup(name){ return { id:uid(), name, inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, devices:[], subGroups:[], useGlobalSettings:true, localSettings:{ orientation:'Vertical', cellSpacing:8, latching:true, itemSize:320, showAddr:true, showPrio:true, showTs:true } }; }
+
+    // Init + sample
+    renderGroups();
+    bind('#btnLoadSample','click',()=>{
+      state.groups=[
+        { id:uid(), name:'Channel 1', devices:[{address:'F110:01:02', alarmName:null},{address:'Favourites/Playout Channels/Channel 1', alarmName:'NAME'}], inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, useGlobalSettings:true, localSettings:{orientation:'Vertical',cellSpacing:8,latching:true,itemSize:320,showAddr:true,showPrio:true,showTs:true}, subGroups:[ { name:'Playout Servers', template:'Servers.tmpl', devices:[{address:'F110:01:09', alarmName:'HEALTH'}], subGroups:[] } ]},
+        { id:uid(), name:'Channel 2', devices:[{address:'System/Exception Monitoring/Channel 2', alarmName:'STATE'}], inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, useGlobalSettings:false, localSettings:{orientation:'Horizontal',cellSpacing:12,latching:false,itemSize:300,showAddr:false,showPrio:true,showTs:true}, subGroups:[ { name:'Playout Servers', template:'Servers.tmpl', devices:[{address:'F110:01:07', alarmName:'CPU'}], subGroups:[] } ]},
+        { id:uid(), name:'Channel 3', devices:[{address:'F110:01:06', alarmName:null},{address:'System/Exception Monitoring/Channel 1', alarmName:'MSG'}], inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, useGlobalSettings:true, localSettings:{orientation:'Vertical',cellSpacing:8,latching:true,itemSize:320,showAddr:true,showPrio:true,showTs:true}, subGroups:[ { name:'Playout Servers', template:'', devices:[{address:'Favourites/Playout Channels/Channel 3/Playout Servers', alarmName:'POWER'}], subGroups:[] } ]}
+      ];
+      state.sel=state.groups[0]; renderGroups(); openEditor(state.sel);
+    });
+
+    // Generate Bundle (local, no push)
+    bind('#btnGenerate','click',()=>{
+      const bundle = {
+        version: '10.3.12',
+        createdAt: new Date().toISOString(),
+        serverIp: ($('#cfgIp').value||'').trim(),
+        projectVars: state.projectVars,
+        master: state.master,
+        favourites: state.groups,
+        templates: { local: state.templates, project: state.projectTemplates.map(t=>({ name:t.name, headers:t.headers })) }
+      };
+      download('PenaltyBoxBundle.json', JSON.stringify(bundle, null, 2));
+      toast('Bundle generated locally – no push performed');
+    });
+  });
+</script>
+</body>
+</html>
