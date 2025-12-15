@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Definition for Favourites import/export",
+  "type": "object",
+  "description": "Specifies favourites in JSON format.",
+  "properties": {
+    "folders": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/definitions/favourites_folder"
+      }
+    }
+  },
+  "required": [
+    "folders"
+  ],
+  "definitions": {
+    "favourites_folder": {
+      "description": "A favourites folder.",
+      "type": "object",
+      "properties": {
+        "item_type": {
+          "type": "string",
+          "const": "favourites_folder"
+        },
+        "name": {
+          "description": "The name of the folder.",
+          "type": "string",
+          "minLength": 1
+        },
+        "template": {
+          "description": "Relative path to the template file.",
+          "type": "string",
+          "minLength": 1
+        },
+        "children": {
+          "description": "Any favourites folders, network folders or devices.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/favourites_folder"
+              },
+              {
+                "$ref": "#/definitions/network_item"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "item_type",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "network_item": {
+      "description": "A network tree folder, device or single alarm.",
+      "type": "object",
+      "properties": {
+        "item_type": {
+          "type": "string",
+          "const": "network_item"
+        },
+        "name": {
+          "description": "The name of the device.",
+          "type": "string",
+          "minLength": 1
+        },
+        "address": {
+          "description": "The id or address of the device.",
+          "type": "string",
+          "minLength": 1
+        },
+		"header": {
+          "description": "The header of an individual alarm.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "item_type",
+        "address",
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

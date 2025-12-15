@@ -737,8 +737,36 @@
         favourites: state.groups,
         templates: { local: state.templates, project: state.projectTemplates.map(t=>({ name:t.name, headers:t.headers })) }
       };
+      // download full bundle
       download('PenaltyBoxBundle.json', JSON.stringify(bundle, null, 2));
-      toast('Bundle generated locally – no push performed');
+
+      // produce a favourites-only config that conforms to the favourites schema
+      function deviceToNetworkItem(d){ const addr = String(d.address||''); const alarm = d.alarmName==null? null : String(d.alarmName); const name = alarm || (addr.split('/').pop()||addr); const obj = { item_type:'network_item', name: String(name||''), address: addr }; if(alarm) obj.header = alarm; return obj; }
+      function subGroupToFolder(sg){ const children = [];
+        (sg.subGroups||[]).forEach(ch=> children.push(subGroupToFolder(ch)));
+        (sg.devices||[]).forEach(dev=> children.push(deviceToNetworkItem(dev)));
+        const folder = { item_type:'favourites_folder', name: String(sg.name||'') };
+        if(sg.template) folder.template = sg.template;
+        if(children.length) folder.children = children;
+        return folder;
+      }
+      function groupToFolder(g){ const children = [];
+        (g.subGroups||[]).forEach(sg=> children.push(subGroupToFolder(sg)));
+        (g.devices||[]).forEach(dev=> children.push(deviceToNetworkItem(dev)));
+        const folder = { item_type:'favourites_folder', name: String(g.name||'') };
+        if(children.length) folder.children = children;
+        return folder;
+      }
+
+      const favouritesConfig = {
+        version: '11.1.0',
+        createdAt: new Date().toISOString(),
+        serverIp: ($('#cfgIp').value||'').trim(),
+        folders: (state.groups||[]).map(groupToFolder)
+      };
+
+      download('penaltyBoxFavourites.json', JSON.stringify(favouritesConfig, null, 2));
+      toast('Bundle and favourites config generated locally – no push performed');
     });
   });
 </script>
