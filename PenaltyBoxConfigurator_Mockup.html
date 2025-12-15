@@ -116,6 +116,10 @@
             <div class="pill" id="groupIdentifier">EM::</div>
           </div>
           <div class="stack">
+            <label>Template</label>
+            <div class="row"><input id="grpTemplate" type="text" placeholder="example.tmpl"/><button id="grpPickTemplate">Pick…</button></div>
+          </div>
+          <div class="stack">
             <div class="grid-2">
               <div class="stack">
                 <label>In Error State</label>
@@ -469,6 +473,7 @@
 
     function openEditor(g){ $('#editorEmpty').style.display='none'; $('#editor').style.display='';
       $('#groupName').value=g.name; $('#groupIdentifier').textContent=`EM::${g.name}`;
+      $('#grpTemplate').value = g.template || '';
       const useGlobal=(g.useGlobalSettings!==false); $('#modeGlobal').checked=useGlobal; $('#modeLocal').checked=!useGlobal; setLocalControlsEnabled(!useGlobal);
       $('#modeTip').textContent = useGlobal? '(Global is default)' : '(Local overrides Global)';
       $('#inErrorState').value=String(g.inError??50); $('#errorPositions').value=g.errorPositions??2; $('#primarySort').value=g.sorts?.p??'Priority'; $('#secondarySort').value=g.sorts?.s??'State'; $('#tertiarySort').value=g.sorts?.t??'Date (Newest First)';
@@ -659,11 +664,12 @@
     } else state.templates.push(tpl); dlg('#dlgCreateTemplate','close'); toast('Template saved locally'); try{ refreshTemplateBrowserView(); }catch(e){} });
 
     // Template Picker
-    bind('#sgPickTemplate','click',()=> openPickTemplateDialog());
+    bind('#sgPickTemplate','click',()=>{ state._tplPickTarget='subgroup'; openPickTemplateDialog(); });
+    bind('#grpPickTemplate','click',()=>{ state._tplPickTarget='group'; openPickTemplateDialog(); });
     bind('#tplPickCancel','click',()=> dlg('#dlgPickTemplate','close'));
     bind('#tplPickSearch','input',()=> renderPickTemplateList());
     bind('#tplPickOpenBrowser','click',()=>{ state._returnToPicker = true; dlg('#dlgPickTemplate','close'); dlg('#dlgTemplateBrowser','open'); refreshTemplateBrowserView(); });
-    bind('#tplPickChoose','click',()=>{ const sel=$('#tplPickList .itm.sel'); if(!sel) return toast('Select a template'); const name=sel.dataset.name; $('#sgTemplate').value=name; dlg('#dlgPickTemplate','close'); });
+    bind('#tplPickChoose','click',()=>{ const sel=$('#tplPickList .itm.sel'); if(!sel) return toast('Select a template'); const name=sel.dataset.name; if(state._tplPickTarget==='group'){ $('#grpTemplate').value=name; } else { $('#sgTemplate').value=name; } state._tplPickTarget=null; dlg('#dlgPickTemplate','close'); });
     function openPickTemplateDialog(){ const hasProject = state.projectTemplates.length>0; $('#tplIncludeProject').checked=hasProject; $('#tplIncludeProject').disabled=!hasProject; $('#tplIncludeLocal').checked=true; renderPickTemplateList(); dlg('#dlgPickTemplate','open'); }
     function openPickTemplateDialog(){ const hasProject = state.projectTemplates.length>0; $('#tplIncludeProject').checked=hasProject; $('#tplIncludeProject').disabled=!hasProject; $('#tplIncludeLocal').checked=true; renderPickTemplateList(); // show preview for current selection if present
       const cur = ($('#sgTemplate').value||'').trim(); if(cur) renderPickTemplatePreview(cur); dlg('#dlgPickTemplate','open'); }
@@ -737,6 +743,8 @@
           showTs: !!$('#lvShowTs').checked
         };
       }
+      // persist group-level template
+      state.sel.template = ($('#grpTemplate').value||'').trim();
       renderGroups($('#searchGroups').value);
       openEditor(state.sel);
     });
