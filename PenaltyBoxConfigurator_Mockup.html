@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Penalty Box Configurator – Interactive Mockup (v11.1.0 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
+<title>Penalty Box Configurator – Interactive Mockup (v11.1.2 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
 <style>
   :root { --bg:#0f1115; --panel:#171a21; --panel-2:#1f2430; --text:#e6e9ef; --muted:#a5adcb; --accent:#7aa2f7; --ok:#73daca; --warn:#e0af68; --err:#f7768e; --badge:#2b3245; --btn:#2d3344; --btn-h:#3b435a; --link:#86aaec; }
   *{box-sizing:border-box}
@@ -67,7 +67,7 @@
   <header>
     <div class="row" style="justify-content:space-between;">
       <div class="row" style="gap:10px; align-items:center;">
-        <h1>Penalty Box Configurator – <span class="muted">v11.1.0</span></h1>
+        <h1>Penalty Box Configurator – <span class="muted">v11.1.2</span></h1>
         <label style="display:flex; flex-direction:column;">
           <span class="muted">GV Orbit Server IP</span>
           <div class="row" style="gap:6px;align-items:center;">
@@ -249,7 +249,7 @@
     </div>
   </div>
 
-  <div class="footer">v11.1.0: Connect modal, aggregated alarms with dual filters, local+remote templates in Templates..., nested sub-groups, defaults to Global, labels refined, picker/browser dynamic updates and template preview improvements.</div>
+  <div class="footer">Penalty Box Configurator v11.1.2 - Minimum GV Orbit version: 3.6.0.</div>
 
   <!-- Connect modal -->
   <dialog id="dlgConnect">
@@ -461,7 +461,12 @@
       const list=$('#groupList'); list.innerHTML=''; const q=(filter||'').toLowerCase();
       state.groups.filter(g=>!q||g.name.toLowerCase().includes(q)).forEach(g=>{
         const div=document.createElement('div'); div.className='list-item'+(g===state.sel?' active':'');
-        const v=validateGroup(g); const badge=document.createElement('span'); badge.className='badge '+(v.ok?'ok':'warn'); badge.textContent=v.ok?'Complete':'Incomplete';
+        const v=validateGroup(g); const badge=document.createElement('span');
+        // determine status: New unsaved (red "Incomplete"), Edited unsaved (yellow "Unsaved"), Saved+validated (green "Complete"), otherwise Incomplete (red)
+        if(g._isNew && g._dirty){ badge.className = 'badge state-fail'; badge.textContent = 'Incomplete'; }
+        else if(g._dirty){ badge.className = 'badge warn'; badge.textContent = 'Unsaved'; }
+        else if(v.ok){ badge.className = 'badge ok'; badge.textContent = 'Complete'; }
+        else { badge.className = 'badge state-fail'; badge.textContent = 'Incomplete'; }
         const name=document.createElement('div'); name.textContent=g.name; name.style.flex='1';
         div.appendChild(badge); div.appendChild(name);
         div.addEventListener('click',()=>{ state.sel=g; openEditor(g); // re-render to update active highlight
@@ -485,13 +490,13 @@
     function setLocalControlsEnabled(enabled){ ['lvOrientation','lvCellSpacing','lvLatching','lvItemSize','lvShowAddr','lvShowPrio','lvShowTs'].forEach(id=>{ const el=$('#'+id); if(el){ el.disabled=!enabled; const box=el.closest('div'); if(box) box.style.opacity = enabled? '1':'0.6'; }}); }
 
     function renderGroupDevices(g){ const tbody=$('#grpDevTable tbody'); tbody.innerHTML=''; (g.devices||[]).forEach((d,i)=>{ const alarmPath = autoFavPath(g.name, []).join('/'); const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(d.address)}</td><td>${escapeHtml(d.alarmName||'')}</td><td>${escapeHtml(alarmPath)}</td><td><span class='link' data-del='${i}'>Remove</span></td>`; tbody.appendChild(tr); });
-      tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); g.devices.splice(i,1); renderGroupDevices(g); renderPreview(g); } } }
+      tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); g.devices.splice(i,1); g._dirty = true; g._isNew = g._isNew || false; renderGroupDevices(g); renderPreview(g); renderGroups($('#searchGroups').value); } } }
 
     function renderSubGroups(g){ const tbody=$('#subGroupTable tbody'); tbody.innerHTML=''; (g.subGroups||[]).forEach((sg,idx)=>{ const childCount=(sg.subGroups||[]).length; const fav=autoFavPath(g.name, sg.__path||[sg.name]).join('/'); const devCount=(sg.devices||[]).length; const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(sg.name||'')}</td><td>${escapeHtml(fav)}</td><td>${escapeHtml(sg.template||'')}</td><td>${devCount}</td><td>${childCount}</td>
         <td><span class='link' data-idx='${idx}'>Edit</span> · <span class='link' data-del='${idx}'>Delete</span></td>`; tbody.appendChild(tr); });
       tbody.onclick=(e)=>{
         if(e.target.matches('[data-idx]')) editSubGroup(parseInt(e.target.getAttribute('data-idx')));
-        if(e.target.matches('[data-del]')){ const i=parseInt(e.target.getAttribute('data-del')); state.sel.subGroups.splice(i,1); renderSubGroups(state.sel); renderPreview(state.sel); }
+        if(e.target.matches('[data-del]')){ const i=parseInt(e.target.getAttribute('data-del')); state.sel.subGroups.splice(i,1); state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderSubGroups(state.sel); renderPreview(state.sel); renderGroups($('#searchGroups').value); }
       }
     }
 
@@ -524,8 +529,8 @@
       }
     }
     function updateFavPathField(){ if(!state.editingCtx) return; const d=state.editingCtx.node; const inputName = ($('#sgName') && $('#sgName').value) ? $('#sgName').value.trim() : ''; const originalParts = (d.__path && d.__path.length) ? d.__path.slice() : [d.name]; const parts = originalParts.filter(Boolean); if(inputName) parts[parts.length-1] = inputName; $('#sgFav').value = autoFavPath(state.sel?.name||'', parts).join('/'); }
-    function renderSgDevs(){ const tbody=$('#sgDevTable tbody'); tbody.innerHTML=''; (state.editingCtx.node.devices||[]).forEach((dv,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(dv.address)}</td><td>${escapeHtml(dv.alarmName||'')}</td><td><span class='link' data-del='${i}'>Remove</span></td>`; tbody.appendChild(tr); }); tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); state.editingCtx.node.devices.splice(i,1); renderSgDevs(); } } }
-    bind('#sgAddDev','click',()=>{ const addr=$('#sgDevAddr').value.trim(); const aName=$('#sgAlarmName').value.trim(); if(!addr) return; state.editingCtx.node.devices.push({address:addr, alarmName:aName||null}); $('#sgDevAddr').value=''; $('#sgAlarmName').value=''; renderSgDevs(); });
+    function renderSgDevs(){ const tbody=$('#sgDevTable tbody'); tbody.innerHTML=''; (state.editingCtx.node.devices||[]).forEach((dv,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(dv.address)}</td><td>${escapeHtml(dv.alarmName||'')}</td><td><span class='link' data-del='${i}'>Remove</span></td>`; tbody.appendChild(tr); }); tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); state.editingCtx.node.devices.splice(i,1); state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderSgDevs(); renderGroups($('#searchGroups').value); } } }
+    bind('#sgAddDev','click',()=>{ const addr=$('#sgDevAddr').value.trim(); const aName=$('#sgAlarmName').value.trim(); if(!addr) return; state.editingCtx.node.devices.push({address:addr, alarmName:aName||null}); $('#sgDevAddr').value=''; $('#sgAlarmName').value=''; state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderSgDevs(); renderGroups($('#searchGroups').value); });
     bind('#sgPickAddr','click',()=>{ if(!state.connected) return toast('Please connect to the GV Orbit Server first'); apCtx={ target:'subgroup' }; openAlarmPicker(); });
     bind('#sgAddChild','click',()=>{
       const edt = state.editingCtx; if(!edt) return; const name = prompt('Child sub-group name'); if(!name) return; const childName = name.trim(); const child = { name:childName, template:'', devices:[], subGroups:[], __path:[...(edt.node.__path||[edt.node.name]), childName] };
@@ -550,13 +555,14 @@
           edt.node.subGroups.push(child);
         }
       }catch(e){ edt.node.subGroups = edt.node.subGroups || []; edt.node.subGroups.push(child); }
+      state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false;
       renderChildSubGroups(); toast('Child sub-group added');
     });
     bind('#sgCancel','click',()=>{ dlg('#dlgSubGroup','close'); state.editingCtx=null; });
-    bind('#sgOk','click',()=>{ const d=state.editingCtx.node; d.name=$('#sgName').value.trim(); d.template=$('#sgTemplate').value.trim(); if(d.__path && d.__path.length>0){ d.__path[d.__path.length-1] = d.name; } else { d.__path=[d.name]; } if(state.editingCtx.index>=0) state.editingCtx.parentArray[state.editingCtx.index]=d; else state.editingCtx.parentArray.push(d); dlg('#dlgSubGroup','close'); renderSubGroups(state.sel); renderPreview(state.sel); state.editingCtx=null; });
+    bind('#sgOk','click',()=>{ const d=state.editingCtx.node; d.name=$('#sgName').value.trim(); d.template=$('#sgTemplate').value.trim(); if(d.__path && d.__path.length>0){ d.__path[d.__path.length-1] = d.name; } else { d.__path=[d.name]; } if(state.editingCtx.index>=0) state.editingCtx.parentArray[state.editingCtx.index]=d; else state.editingCtx.parentArray.push(d); dlg('#dlgSubGroup','close'); state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderSubGroups(state.sel); renderPreview(state.sel); state.editingCtx=null; });
 
     // Group-level: add device and open Alarm Picker
-    bind('#grpAddDev','click',()=>{ const addr=$('#grpDevAddr').value.trim(); const aName=$('#grpAlarmName').value.trim(); if(!addr) return; if(!state.sel) return toast('Select a favourite first'); state.sel.devices = state.sel.devices || []; state.sel.devices.push({ address: addr, alarmName: aName||null }); $('#grpDevAddr').value=''; $('#grpAlarmName').value=''; renderGroupDevices(state.sel); renderPreview(state.sel); });
+    bind('#grpAddDev','click',()=>{ const addr=$('#grpDevAddr').value.trim(); const aName=$('#grpAlarmName').value.trim(); if(!addr) return; if(!state.sel) return toast('Select a favourite first'); state.sel.devices = state.sel.devices || []; state.sel.devices.push({ address: addr, alarmName: aName||null }); $('#grpDevAddr').value=''; $('#grpAlarmName').value=''; state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderGroupDevices(state.sel); renderPreview(state.sel); renderGroups($('#searchGroups').value); });
     bind('#grpPickAddr','click',()=>{ if(!state.connected) return toast('Please connect to the GV Orbit Server first'); apCtx={ target:'group' }; openAlarmPicker(); });
 
     // Top-level Add Sub-group button (ask for a name, create and open editor)
@@ -567,6 +573,7 @@
       state.sel.subGroups = state.sel.subGroups || [];
       const sg = { name: name.trim(), template:'', devices:[], subGroups:[], __path:[name.trim()] };
       state.sel.subGroups.push(sg);
+      state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false;
       renderSubGroups(state.sel);
       // open editor for the newly created sub-group
       state.editingCtx = { parentArray: state.sel.subGroups, index: state.sel.subGroups.length-1, node: sg };
@@ -627,12 +634,14 @@
       if(apCtx?.target==='group'){
         if(chosenAlarms.length){ chosenAlarms.forEach(el=>{ const name=el.dataset.name||el.querySelector('strong').textContent; const bucket = state.agg.byName.get(name)||[]; bucket.forEach(rec=>{ if(!state.sel.devices) state.sel.devices=[]; state.sel.devices.push({address:rec.path, alarmName:name}); }); }); }
         else if(selDevs.length){ selDevs.forEach(el=>{ const path=el.textContent.replace(/\s*fav\s*$/,''); if(!state.sel.devices) state.sel.devices=[]; state.sel.devices.push({address:path}); }); }
-        renderGroupDevices(state.sel); renderPreview(state.sel);
+        state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false;
+        renderGroupDevices(state.sel); renderPreview(state.sel); renderGroups($('#searchGroups').value);
       } else if(apCtx?.target==='subgroup'){
         const node = state.editingCtx?.node; if(!node) { dlg('#dlgAlarmPicker','close'); return; }
         if(chosenAlarms.length){ chosenAlarms.forEach(el=>{ const name=el.dataset.name||el.querySelector('strong').textContent; const bucket = state.agg.byName.get(name)||[]; bucket.forEach(rec=>{ if(!node.devices) node.devices=[]; node.devices.push({address:rec.path, alarmName:name}); }); }); }
         else if(selDevs.length){ selDevs.forEach(el=>{ const path=el.textContent.replace(/\s*fav\s*$/,''); if(!node.devices) node.devices=[]; node.devices.push({address:path}); }); }
-        renderSgDevs();
+        state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false;
+        renderSgDevs(); renderGroups($('#searchGroups').value);
       }
       dlg('#dlgAlarmPicker','close');
     });
@@ -720,7 +729,7 @@
       }; box.appendChild(div); }); }
 
     // Create / Undo / Save / Delete
-    bind('#btnCreate','click',()=> { const name=prompt('Favourite name'); if(!name) return; if(state.groups.find(g=>g.name===name)) return toast('Name must be unique'); const g=newGroup(name); state.groups.push(g); state.lastAction={type:'create',id:g.id}; renderGroups(); state.sel=g; openEditor(g); });
+    bind('#btnCreate','click',()=> { const name=prompt('Favourite name'); if(!name) return; if(state.groups.find(g=>g.name===name)) return toast('Name must be unique'); const g=newGroup(name); g._dirty = true; g._isNew = true; state.groups.push(g); state.lastAction={type:'create',id:g.id}; renderGroups(); state.sel=g; openEditor(g); });
     bind('#btnUndo','click',()=>{ const a=state.lastAction; if(!a) return; if(a.type==='create') state.groups = state.groups.filter(g=>g.id!==a.id); if(a.type==='duplicate') state.groups = state.groups.filter(g=>!a.ids.includes(g.id)); state.lastAction=null; state.sel=null; renderGroups(); $('#editor').style.display='none'; $('#editorEmpty').style.display=''; });
     bind('#btnDeleteGroup','click',()=>{ if(!state.sel) return; if(!confirm('Delete favourite '+state.sel.name+'?')) return; state.groups = state.groups.filter(g=>g!==state.sel); state.sel=null; renderGroups(); $('#editor').style.display='none'; $('#editorEmpty').style.display=''; });
     bind('#btnSaveGroup','click',()=>{
@@ -745,10 +754,12 @@
       }
       // persist group-level template
       state.sel.template = ($('#grpTemplate').value||'').trim();
+      // mark as saved
+      state.sel._dirty = false; state.sel._isNew = false;
       renderGroups($('#searchGroups').value);
       openEditor(state.sel);
     });
-    bind('#groupName','input',()=>{ if(!state.sel) return; $('#groupIdentifier').textContent='EM::'+$('#groupName').value.trim(); });
+    bind('#groupName','input',()=>{ if(!state.sel) return; $('#groupIdentifier').textContent='EM::'+$('#groupName').value.trim(); state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderGroups($('#searchGroups').value); });
     bind('#searchGroups','input',(e)=> renderGroups(e.target.value));
 
     // Toggle Global/Local settings and enable/disable local controls
@@ -765,13 +776,15 @@
         { id:uid(), name:'Channel 2', devices:[{address:'System/Exception Monitoring/Channel 2', alarmName:'STATE'}], inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, useGlobalSettings:true, localSettings:{orientation:'Vertical',cellSpacing:8,latching:true,itemSize:320,showAddr:true,showPrio:true,showTs:true}, subGroups:[ ]},
         { id:uid(), name:'Channel 3', devices:[{address:'F110:01:06', alarmName:null},{address:'System/Exception Monitoring/Channel 1', alarmName:'MSG'}], inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, useGlobalSettings:true, localSettings:{orientation:'Vertical',cellSpacing:8,latching:true,itemSize:320,showAddr:true,showPrio:true,showTs:true}, subGroups:[ ]}
       ];
+      // mark sample data as saved (not dirty)
+      (state.groups||[]).forEach(g=>{ g._dirty = false; g._isNew = false; });
       state.sel=state.groups[0]; renderGroups(); openEditor(state.sel);
     });
 
     // Generate Bundle (local, no push)
     bind('#btnGenerate','click',()=>{
       const bundle = {
-        version: '11.1.0',
+        version: '11.1.2',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         projectVars: state.projectVars,
@@ -801,7 +814,7 @@
       }
 
       const favouritesConfig = {
-        version: '11.1.0',
+        version: '11.1.2',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         folders: (state.groups||[]).map(groupToFolder)
