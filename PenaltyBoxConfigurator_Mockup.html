@@ -492,20 +492,28 @@
 
     function editSubGroup(idx){ state.editingCtx={ parentArray: state.sel.subGroups, index: idx, node: JSON.parse(JSON.stringify(state.sel.subGroups[idx])) }; if(!state.editingCtx.node.__path) state.editingCtx.node.__path=[state.editingCtx.node.name]; openSubGroupDialog(); }
     function openSubGroupDialog(){ const d=state.editingCtx.node; $('#sgName').value=d.name||''; $('#sgTemplate').value=d.template||''; updateFavPathField(); renderSgDevs(); renderChildSubGroups(); dlg('#dlgSubGroup','open'); }
-    function renderChildSubGroups(){ const tbody=$('#sgChildTable tbody'); tbody.innerHTML=''; const node = state.editingCtx?.node; if(!node) return; (node.subGroups||[]).forEach((sg,idx)=>{ const childCount=(sg.subGroups||[]).length; const fav=autoFavPath(state.sel.name, sg.__path||[sg.name]).join('/'); const devCount=(sg.devices||[]).length; const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(sg.name||'')}</td><td>${escapeHtml(fav)}</td><td>${escapeHtml(sg.template||'')}</td><td>${devCount}</td><td>${childCount}</td>
+    function renderChildSubGroups(){ const tbody=$('#sgChildTable tbody'); tbody.innerHTML=''; const edt = state.editingCtx; if(!edt) return; // prefer live children when available
+      const liveParent = (edt.parentArray && typeof edt.index==='number' && edt.index>=0) ? (edt.parentArray[edt.index] || {}) : null;
+      const children = (liveParent && Array.isArray(liveParent.subGroups)) ? liveParent.subGroups : (edt.node.subGroups||[]);
+      children.forEach((sg,idx)=>{ const childCount=(sg.subGroups||[]).length; const fav=autoFavPath(state.sel.name, sg.__path||[sg.name]).join('/'); const devCount=(sg.devices||[]).length; const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(sg.name||'')}</td><td>${escapeHtml(fav)}</td><td>${escapeHtml(sg.template||'')}</td><td>${devCount}</td><td>${childCount}</td>
         <td><span class='link' data-idx='${idx}'>Edit</span> · <span class='link' data-del='${idx}'>Delete</span></td>`; tbody.appendChild(tr); });
       tbody.onclick=(e)=>{
         if(e.target.matches('[data-idx]')){
           const i=parseInt(e.target.getAttribute('data-idx'));
-          // open nested editor for this child
-          const parentArray = state.editingCtx.node.subGroups;
-          state.editingCtx = { parentArray: parentArray, index: i, node: JSON.parse(JSON.stringify(parentArray[i])) };
-          if(!state.editingCtx.node.__path) state.editingCtx.node.__path = (parentArray[i] && parentArray[i].__path) ? parentArray[i].__path.slice() : [state.editingCtx.node.name];
+          // locate live parent array for this level
+          const parentArrayLive = (edt.parentArray && typeof edt.index==='number' && edt.index>=0) ? (edt.parentArray[edt.index].subGroups = edt.parentArray[edt.index].subGroups || []) : (state.sel.subGroups = state.sel.subGroups || []);
+          // set editingCtx to operate on the live array for the child
+          state.editingCtx = { parentArray: parentArrayLive, index: i, node: JSON.parse(JSON.stringify(parentArrayLive[i])) };
+          if(!state.editingCtx.node.__path) state.editingCtx.node.__path = (parentArrayLive[i] && parentArrayLive[i].__path) ? parentArrayLive[i].__path.slice() : [state.editingCtx.node.name];
           openSubGroupDialog();
         }
         if(e.target.matches('[data-del]')){
           const i=parseInt(e.target.getAttribute('data-del'));
-          state.editingCtx.node.subGroups.splice(i,1);
+          // delete from live array when possible
+          const parentArrayLive = (edt.parentArray && typeof edt.index==='number' && edt.index>=0) ? (edt.parentArray[edt.index].subGroups = edt.parentArray[edt.index].subGroups || []) : (edt.node.subGroups = edt.node.subGroups || []);
+          parentArrayLive.splice(i,1);
+          // also sync editor copy
+          edt.node.subGroups = (edt.node.subGroups||[]).slice(); edt.node.subGroups.splice(i,1);
           renderChildSubGroups();
         }
       }
@@ -514,7 +522,31 @@
     function renderSgDevs(){ const tbody=$('#sgDevTable tbody'); tbody.innerHTML=''; (state.editingCtx.node.devices||[]).forEach((dv,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(dv.address)}</td><td>${escapeHtml(dv.alarmName||'')}</td><td><span class='link' data-del='${i}'>Remove</span></td>`; tbody.appendChild(tr); }); tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); state.editingCtx.node.devices.splice(i,1); renderSgDevs(); } } }
     bind('#sgAddDev','click',()=>{ const addr=$('#sgDevAddr').value.trim(); const aName=$('#sgAlarmName').value.trim(); if(!addr) return; state.editingCtx.node.devices.push({address:addr, alarmName:aName||null}); $('#sgDevAddr').value=''; $('#sgAlarmName').value=''; renderSgDevs(); });
     bind('#sgPickAddr','click',()=>{ if(!state.connected) return toast('Please connect to the GV Orbit Server first'); apCtx={ target:'subgroup' }; openAlarmPicker(); });
-    bind('#sgAddChild','click',()=>{ const d=state.editingCtx?.node; if(!d) return; const name = prompt('Child sub-group name'); if(!name) return; if(!d.subGroups) d.subGroups=[]; const childName = name.trim(); const child={ name:childName, template:'', devices:[], subGroups:[], __path:[...(d.__path||[d.name]), childName] }; d.subGroups.push(child); renderChildSubGroups(); toast('Child sub-group added'); });
+    bind('#sgAddChild','click',()=>{
+      const edt = state.editingCtx; if(!edt) return; const name = prompt('Child sub-group name'); if(!name) return; const childName = name.trim(); const child = { name:childName, template:'', devices:[], subGroups:[], __path:[...(edt.node.__path||[edt.node.name]), childName] };
+      // push into live data structure
+      try{
+        const liveParent = (edt.parentArray && typeof edt.index==='number' && edt.index>=0) ? edt.parentArray[edt.index] : null;
+        if(liveParent){
+          liveParent.subGroups = liveParent.subGroups || [];
+          // persist into the live data structure
+          liveParent.subGroups.push(JSON.parse(JSON.stringify(child)));
+          // if the editor node is a separate copy, sync it; if it's the same object, avoid double-push
+          if(liveParent !== edt.node){
+            edt.node.subGroups = edt.node.subGroups || [];
+            edt.node.subGroups.push(JSON.parse(JSON.stringify(child)));
+          } else {
+            // ensure editor view references the live array
+            edt.node.subGroups = liveParent.subGroups;
+          }
+        } else {
+          // fallback: modify editor-only node
+          edt.node.subGroups = edt.node.subGroups || [];
+          edt.node.subGroups.push(child);
+        }
+      }catch(e){ edt.node.subGroups = edt.node.subGroups || []; edt.node.subGroups.push(child); }
+      renderChildSubGroups(); toast('Child sub-group added');
+    });
     bind('#sgCancel','click',()=>{ dlg('#dlgSubGroup','close'); state.editingCtx=null; });
     bind('#sgOk','click',()=>{ const d=state.editingCtx.node; d.name=$('#sgName').value.trim(); d.template=$('#sgTemplate').value.trim(); if(d.__path && d.__path.length>0){ d.__path[d.__path.length-1] = d.name; } else { d.__path=[d.name]; } if(state.editingCtx.index>=0) state.editingCtx.parentArray[state.editingCtx.index]=d; else state.editingCtx.parentArray.push(d); dlg('#dlgSubGroup','close'); renderSubGroups(state.sel); renderPreview(state.sel); state.editingCtx=null; });
 
