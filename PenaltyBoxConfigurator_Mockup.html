@@ -654,7 +654,9 @@
     bind('#ctCancel','click',()=> dlg('#dlgCreateTemplate','close'));
     bind('#ctAddManual','click',()=>{ const h=($('#ctManualHeader').value||'').trim(); if(!h) return; addCtHeader(h,'manual'); $('#ctManualHeader').value=''; renderCtHeaders(); });
     bind('#ctPick','click',()=>{ if(!state.connected){ openConnectDialog(); return; } apCtx={ target:'template' }; openAlarmPicker(); });
-    bind('#ctOk','click',()=>{ const name=$('#ctName').value.trim()||''; const headers=state.ctHeaders.map(x=>x.h).filter(Boolean); if(!name) return toast('Template name required'); if(headers.length===0) return toast('Add at least one header'); const idx=state.templates.findIndex(t=>t.name===name); const tpl={ name, headers }; if(idx>=0) state.templates[idx]=tpl; else state.templates.push(tpl); dlg('#dlgCreateTemplate','close'); toast('Template saved locally'); try{ refreshTemplateBrowserView(); }catch(e){} });
+    bind('#ctOk','click',()=>{ const name=$('#ctName').value.trim()||''; const headers=state.ctHeaders.map(x=>x.h).filter(Boolean); if(!name) return toast('Template name required'); if(headers.length===0) return toast('Add at least one header'); const idx=state.templates.findIndex(t=>t.name===name); const tpl={ name, headers, _userCreated:true }; if(idx>=0){ // preserve any existing metadata but mark as user-created
+      const existing = state.templates[idx]||{}; tpl._userCreated = existing._userCreated || true; state.templates[idx]=tpl;
+    } else state.templates.push(tpl); dlg('#dlgCreateTemplate','close'); toast('Template saved locally'); try{ refreshTemplateBrowserView(); }catch(e){} });
 
     // Template Picker
     bind('#sgPickTemplate','click',()=> openPickTemplateDialog());
@@ -798,7 +800,36 @@
       };
 
       download('penaltyBoxFavourites.json', JSON.stringify(favouritesConfig, null, 2));
-      toast('Bundle and favourites config generated locally – no push performed');
+      // also generate .tmpl files for each known template (local + project)
+      try{
+        const makeContent = (tpl)=>{
+          // produce only the headers (one per line) — no comment metadata
+          if(Array.isArray(tpl.headers) && tpl.headers.length){
+            return tpl.headers.map(h=> String(h)).join('\n');
+          }
+          return '';
+        };
+        // only export templates that are actually referenced by the favourites
+        const referenced = new Set();
+        (state.groups||[]).forEach(g=>{
+          const walk = (sg)=>{
+            if(sg && sg.template) referenced.add(String(sg.template));
+            (sg.subGroups||[]).forEach(ch=> walk(ch));
+          };
+          (g.subGroups||[]).forEach(sg=> walk(sg));
+        });
+        // local templates: export if referenced OR explicitly created by the user
+        (state.templates||[]).forEach(t=>{
+          const nm = String(t.name||''); if(!nm) return;
+          if(!referenced.has(nm) && !t._userCreated) return;
+          const fname = nm || 'template.tmpl'; download(fname, makeContent(t));
+        });
+        // project/remote templates (we only have name+headers)
+        (state.projectTemplates||[]).forEach(t=>{
+          if(!referenced.has(String(t.name))) return; const fname = (t.name||'project-template.tmpl'); download(fname, makeContent(t));
+        });
+      }catch(e){ console.error('Template export failed', e); }
+      toast('Bundle, favourites config and template files generated locally – no push performed');
     });
   });
 </script>
