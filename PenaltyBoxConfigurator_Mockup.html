@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Penalty Box Configurator – Interactive Mockup (v11.1.2 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
+<title>Penalty Box Configurator – Interactive Mockup (v11.2.0 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
 <style>
   :root { --bg:#0f1115; --panel:#171a21; --panel-2:#1f2430; --text:#e6e9ef; --muted:#a5adcb; --accent:#7aa2f7; --ok:#73daca; --warn:#e0af68; --err:#f7768e; --badge:#2b3245; --btn:#2d3344; --btn-h:#3b435a; --link:#86aaec; }
   *{box-sizing:border-box}
@@ -67,7 +67,7 @@
   <header>
     <div class="row" style="justify-content:space-between;">
       <div class="row" style="gap:10px; align-items:center;">
-        <h1>Penalty Box Configurator – <span class="muted">v11.1.2</span></h1>
+        <h1>Penalty Box Configurator – <span class="muted">v11.2.0</span></h1>
         <label style="display:flex; flex-direction:column;">
           <span class="muted">GV Orbit Server IP</span>
           <div class="row" style="gap:6px;align-items:center;">
@@ -249,7 +249,7 @@
     </div>
   </div>
 
-  <div class="footer">Penalty Box Configurator v11.1.2 - Minimum GV Orbit version: 3.6.0.</div>
+  <div class="footer">Penalty Box Configurator v11.2.0 - Minimum GV Orbit version: 3.6.0.</div>
 
   <!-- Connect modal -->
   <dialog id="dlgConnect">
@@ -352,7 +352,15 @@
         </div>
         <div>
           <label class="small">Alarm filter</label>
-          <input id="apFilterAlarm" class="search" placeholder="Filter alarms (by name)"/>
+          <div class="row" style="gap:8px;align-items:center;">
+            <input id="apFilterAlarm" class="search" placeholder="Filter alarms (by name)"/>
+            <select id="apAlarmSort" style="min-width:160px;">
+              <option value="az">A-Z</option>
+              <option value="za">Z-A</option>
+              <option value="dup-asc">Duplicates ↑</option>
+              <option value="dup-desc">Duplicates ↓</option>
+            </select>
+          </div>
           <div class="listbox" id="apAlarmList"></div>
         </div>
       </div>
@@ -590,8 +598,10 @@
     // Alarm Picker with dual filters & aggregation
     bind('#apCancel','click',()=> dlg('#dlgAlarmPicker','close'));
     async function openAlarmPicker(){ $('#apDeviceList').innerHTML=''; $('#apAlarmList').innerHTML=''; $('#apFilterAlarm').value=''; $('#apFilterDevice').value=''; state.selectedDevices=[]; state.agg={byName:new Map(),flat:[]}; dlg('#dlgAlarmPicker','open'); if(state._devices.length===0){ try{ const devices = await apiGet('/devices'); state._devices = Array.isArray(devices)? devices : []; }catch(e){ toast('Load devices failed: '+e.message); } } renderDeviceList(); renderAlarmList(); }
-    function renderDeviceList(){ const box=$('#apDeviceList'); box.innerHTML=''; const q=($('#apFilterDevice').value||'').toLowerCase(); (state._devices||[])
+    function renderDeviceList(){ const box=$('#apDeviceList'); box.innerHTML=''; const q=($('#apFilterDevice').value||'').toLowerCase();
+      Array.from(state._devices||[])
         .filter(d=> !q || String(d).toLowerCase().includes(q))
+        .sort((a,b)=> String(a).localeCompare(String(b)))
         .forEach(d=>{ const div=document.createElement('div'); div.className='itm'; const isFav = String(d).includes('Favourites/') || String(d).includes('System/');
           div.innerHTML = `${escapeHtml(d)} ${isFav? '<span class="state-pill state-ok">fav</span>':''}`;
           div.onclick=()=>{ div.classList.toggle('sel'); const path=String(d); if(div.classList.contains('sel')){ if(!state.selectedDevices.includes(path)) state.selectedDevices.push(path); } else { state.selectedDevices = state.selectedDevices.filter(p=>p!==path); }
@@ -607,13 +617,18 @@
         }); }catch(e){ /* per-device error ignored */ }
       });
       await Promise.all(promises);
-      state.agg.flat = Array.from(state.agg.byName.keys())
-        .filter(nm=> !qAlarm || nm.toLowerCase().includes(qAlarm))
-        .sort()
-        .map(nm=>{ const arr = state.agg.byName.get(nm)||[]; const rep = arr[0]; return { name:nm, path:rep.path, count:arr.length }; });
+      const keys = Array.from(state.agg.byName.keys()).filter(nm=> !qAlarm || nm.toLowerCase().includes(qAlarm));
+      const arr = keys.map(nm=>{ const bucket = state.agg.byName.get(nm)||[]; const rep = bucket[0]; return { name:nm, path: (rep && rep.path) || '', count: bucket.length }; });
+      const sortVal = ($('#apAlarmSort') && $('#apAlarmSort').value) ? $('#apAlarmSort').value : 'az';
+      if(sortVal === 'az') arr.sort((a,b)=> a.name.localeCompare(b.name));
+      else if(sortVal === 'za') arr.sort((a,b)=> b.name.localeCompare(a.name));
+      else if(sortVal === 'dup-asc') arr.sort((a,b)=> a.count - b.count || a.name.localeCompare(b.name));
+      else if(sortVal === 'dup-desc') arr.sort((a,b)=> b.count - a.count || a.name.localeCompare(b.name));
+      state.agg.flat = arr;
       renderAlarmList();
     }
     bind('#apFilterAlarm','input', aggregateAlarmsForSelectedDevices);
+    bind('#apAlarmSort','change', aggregateAlarmsForSelectedDevices);
 
     function renderAlarmList(){ const box=$('#apAlarmList'); box.innerHTML=''; (state.agg.flat||[]).forEach(item=>{ const cls='state-ok'; const div=document.createElement('div'); div.className='itm';
       div.dataset.name=item.name; div.dataset.count=item.count; div.innerHTML = `<strong>${escapeHtml(item.name)}</strong> <span class='muted small'>${escapeHtml(item.path)}</span>
@@ -784,7 +799,7 @@
     // Generate Bundle (local, no push)
     bind('#btnGenerate','click',()=>{
       const bundle = {
-        version: '11.1.2',
+        version: '11.2.0',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         projectVars: state.projectVars,
@@ -814,7 +829,7 @@
       }
 
       const favouritesConfig = {
-        version: '11.1.2',
+        version: '11.2.0',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         folders: (state.groups||[]).map(groupToFolder)
