@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Penalty Box Configurator – Interactive Mockup (v11.2.2 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
+<title>Penalty Box Configurator – Interactive Mockup (v11.3.0 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
 <style>
   :root { --bg:#0f1115; --panel:#171a21; --panel-2:#1f2430; --text:#e6e9ef; --muted:#a5adcb; --accent:#7aa2f7; --ok:#73daca; --warn:#e0af68; --err:#f7768e; --badge:#2b3245; --btn:#2d3344; --btn-h:#3b435a; --link:#86aaec; }
   *{box-sizing:border-box}
@@ -67,7 +67,7 @@
   <header>
     <div class="row" style="justify-content:space-between;">
       <div class="row" style="gap:10px; align-items:center;">
-        <h1>Penalty Box Configurator – <span class="muted">v11.2.2</span></h1>
+        <h1>Penalty Box Configurator – <span class="muted">v11.3.0</span></h1>
         <label style="display:flex; flex-direction:column;">
           <span class="muted">GV Orbit Server IP</span>
           <div class="row" style="gap:6px;align-items:center;">
@@ -249,7 +249,7 @@
     </div>
   </div>
 
-  <div class="footer">Penalty Box Configurator v11.2.2 - Minimum GV Orbit version: 3.6.0.</div>
+  <div class="footer">Penalty Box Configurator v11.3.0 - Minimum GV Orbit version: 3.6.0.</div>
 
   <!-- Connect modal -->
   <dialog id="dlgConnect">
@@ -497,8 +497,43 @@
 
     function setLocalControlsEnabled(enabled){ ['lvOrientation','lvCellSpacing','lvLatching','lvItemSize','lvShowAddr','lvShowPrio','lvShowTs'].forEach(id=>{ const el=$('#'+id); if(el){ el.disabled=!enabled; const box=el.closest('div'); if(box) box.style.opacity = enabled? '1':'0.6'; }}); }
 
-    function renderGroupDevices(g){ const tbody=$('#grpDevTable tbody'); tbody.innerHTML=''; (g.devices||[]).forEach((d,i)=>{ const alarmPath = autoFavPath(g.name, []).join('/'); const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(d.address)}</td><td>${escapeHtml(d.alarmName||'')}</td><td>${escapeHtml(alarmPath)}</td><td><span class='link' data-del='${i}'>Remove</span></td>`; tbody.appendChild(tr); });
-      tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); g.devices.splice(i,1); g._dirty = true; g._isNew = g._isNew || false; renderGroupDevices(g); renderPreview(g); renderGroups($('#searchGroups').value); } } }
+    async function renderGroupDevices(g){
+      const tbody = $('#grpDevTable tbody');
+      tbody.innerHTML = '';
+      if (!state.deviceNameCache) state.deviceNameCache = {};
+      for (let i = 0; i < (g.devices || []).length; ++i) {
+        const d = g.devices[i];
+        let name = state.deviceNameCache[d.address];
+        if (name === undefined) {
+          try {
+            const res = await apiGet(`/alarms?path=${encodeURIComponent(d.address)}&name=NAME`);
+            if (Array.isArray(res) && res.length && res[0].state && res[0].state.value) {
+              name = res[0].state.value;
+              state.deviceNameCache[d.address] = name;
+            } else {
+              name = '';
+              state.deviceNameCache[d.address] = '';
+            }
+          } catch (e) { name = ''; state.deviceNameCache[d.address] = ''; }
+        }
+        const alarmPath = autoFavPath(g.name, []).join('/');
+        const label = name ? `${escapeHtml(name)}: ${escapeHtml(d.address)}` : escapeHtml(d.address);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${label}</td><td>${escapeHtml(d.alarmName||'')}</td><td>${escapeHtml(alarmPath)}</td><td><span class='link' data-del='${i}'>Remove</span></td>`;
+        tbody.appendChild(tr);
+      }
+      tbody.onclick = (e) => {
+        if (e.target.matches('[data-del]')) {
+          const i = +e.target.getAttribute('data-del');
+          g.devices.splice(i, 1);
+          g._dirty = true;
+          g._isNew = g._isNew || false;
+          renderGroupDevices(g);
+          renderPreview(g);
+          renderGroups($('#searchGroups').value);
+        }
+      };
+    }
 
     function renderSubGroups(g){ const tbody=$('#subGroupTable tbody'); tbody.innerHTML=''; (g.subGroups||[]).forEach((sg,idx)=>{ const childCount=(sg.subGroups||[]).length; const fav=autoFavPath(g.name, sg.__path||[sg.name]).join('/'); const devCount=(sg.devices||[]).length; const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(sg.name||'')}</td><td>${escapeHtml(fav)}</td><td>${escapeHtml(sg.template||'')}</td><td>${devCount}</td><td>${childCount}</td>
         <td><span class='link' data-idx='${idx}'>Edit</span> · <span class='link' data-del='${idx}'>Delete</span></td>`; tbody.appendChild(tr); });
@@ -537,7 +572,42 @@
       }
     }
     function updateFavPathField(){ if(!state.editingCtx) return; const d=state.editingCtx.node; const inputName = ($('#sgName') && $('#sgName').value) ? $('#sgName').value.trim() : ''; const originalParts = (d.__path && d.__path.length) ? d.__path.slice() : [d.name]; const parts = originalParts.filter(Boolean); if(inputName) parts[parts.length-1] = inputName; $('#sgFav').value = autoFavPath(state.sel?.name||'', parts).join('/'); }
-    function renderSgDevs(){ const tbody=$('#sgDevTable tbody'); tbody.innerHTML=''; (state.editingCtx.node.devices||[]).forEach((dv,i)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(dv.address)}</td><td>${escapeHtml(dv.alarmName||'')}</td><td><span class='link' data-del='${i}'>Remove</span></td>`; tbody.appendChild(tr); }); tbody.onclick=(e)=>{ if(e.target.matches('[data-del]')){ const i=+e.target.getAttribute('data-del'); state.editingCtx.node.devices.splice(i,1); state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderSgDevs(); renderGroups($('#searchGroups').value); } } }
+    async function renderSgDevs() {
+      const tbody = $('#sgDevTable tbody');
+      tbody.innerHTML = '';
+      if (!state.deviceNameCache) state.deviceNameCache = {};
+      const devs = state.editingCtx.node.devices || [];
+      for (let i = 0; i < devs.length; ++i) {
+        const dv = devs[i];
+        let name = state.deviceNameCache[dv.address];
+        if (name === undefined) {
+          try {
+            const res = await apiGet(`/alarms?path=${encodeURIComponent(dv.address)}&name=NAME`);
+            if (Array.isArray(res) && res.length && res[0].state && res[0].state.value) {
+              name = res[0].state.value;
+              state.deviceNameCache[dv.address] = name;
+            } else {
+              name = '';
+              state.deviceNameCache[dv.address] = '';
+            }
+          } catch (e) { name = ''; state.deviceNameCache[dv.address] = ''; }
+        }
+        const label = name ? `${escapeHtml(name)}: ${escapeHtml(dv.address)}` : escapeHtml(dv.address);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${label}</td><td>${escapeHtml(dv.alarmName||'')}</td><td><span class='link' data-del='${i}'>Remove</span></td>`;
+        tbody.appendChild(tr);
+      }
+      tbody.onclick = (e) => {
+        if (e.target.matches('[data-del]')) {
+          const i = +e.target.getAttribute('data-del');
+          state.editingCtx.node.devices.splice(i, 1);
+          state.sel._dirty = true;
+          state.sel._isNew = state.sel._isNew || false;
+          renderSgDevs();
+          renderGroups($('#searchGroups').value);
+        }
+      };
+    }
     bind('#sgAddDev','click',()=>{ const addr=$('#sgDevAddr').value.trim(); const aName=$('#sgAlarmName').value.trim(); if(!addr) return; state.editingCtx.node.devices.push({address:addr, alarmName:aName||null}); $('#sgDevAddr').value=''; $('#sgAlarmName').value=''; state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderSgDevs(); renderGroups($('#searchGroups').value); });
     bind('#sgPickAddr','click',()=>{ if(!state.connected) return toast('Please connect to the GV Orbit Server first'); apCtx={ target:'subgroup' }; openAlarmPicker(); });
     bind('#sgAddChild','click',()=>{
@@ -598,16 +668,54 @@
     // Alarm Picker with dual filters & aggregation
     bind('#apCancel','click',()=> dlg('#dlgAlarmPicker','close'));
     async function openAlarmPicker(){ $('#apDeviceList').innerHTML=''; $('#apAlarmList').innerHTML=''; $('#apFilterAlarm').value=''; $('#apFilterDevice').value=''; state.selectedDevices=[]; state.agg={byName:new Map(),flat:[]}; dlg('#dlgAlarmPicker','open'); if(state._devices.length===0){ try{ const devices = await apiGet('/devices'); state._devices = Array.isArray(devices)? devices : []; }catch(e){ toast('Load devices failed: '+e.message); } } renderDeviceList(); renderAlarmList(); }
-    function renderDeviceList(){ const box=$('#apDeviceList'); box.innerHTML=''; const q=($('#apFilterDevice').value||'').toLowerCase();
-      Array.from(state._devices||[])
-        .filter(d=> !q || String(d).toLowerCase().includes(q))
-        .sort((a,b)=> String(a).localeCompare(String(b)))
-        .forEach(d=>{ const div=document.createElement('div'); div.className='itm'; const isFav = String(d).includes('Favourites/') || String(d).includes('System/');
-          div.innerHTML = `${escapeHtml(d)} ${isFav? '<span class="state-pill state-ok">fav</span>':''}`;
-          div.onclick=()=>{ div.classList.toggle('sel'); const path=String(d); if(div.classList.contains('sel')){ if(!state.selectedDevices.includes(path)) state.selectedDevices.push(path); } else { state.selectedDevices = state.selectedDevices.filter(p=>p!==path); }
-            aggregateAlarmsForSelectedDevices(); };
-          box.appendChild(div);
-        }); }
+    // Cache for device names to avoid redundant API calls
+    if (!state.deviceNameCache) state.deviceNameCache = {};
+    async function getDeviceName(address) {
+      if (state.deviceNameCache[address] !== undefined) return state.deviceNameCache[address];
+      try {
+        const res = await apiGet(`/alarms?path=${encodeURIComponent(address)}&name=NAME`);
+        if (Array.isArray(res) && res.length && res[0].state && res[0].state.value) {
+          state.deviceNameCache[address] = res[0].state.value;
+          return res[0].state.value;
+        }
+      } catch (e) {}
+      state.deviceNameCache[address] = '';
+      return '';
+    }
+
+    async function renderDeviceList() {
+      const box = $('#apDeviceList'); box.innerHTML = '';
+      const q = ($('#apFilterDevice').value || '').toLowerCase();
+      const devices = Array.from(state._devices || [])
+        .filter(d => !q || String(d).toLowerCase().includes(q))
+        .sort((a, b) => String(a).localeCompare(String(b)));
+      // Show loading placeholders
+      devices.forEach(d => {
+        const div = document.createElement('div');
+        div.className = 'itm';
+        div.innerHTML = `${escapeHtml(d)} <span class="muted small">(loading...)</span>`;
+        box.appendChild(div);
+      });
+      // Fetch names and update
+      for (let i = 0; i < devices.length; ++i) {
+        const d = devices[i];
+        const name = await getDeviceName(d);
+        const isFav = String(d).includes('Favourites/') || String(d).includes('System/');
+        const label = name ? `${escapeHtml(name)}: ${escapeHtml(d)}` : escapeHtml(d);
+        const div = box.children[i];
+        div.innerHTML = `${label} ${isFav ? '<span class="state-pill state-ok">fav</span>' : ''}`;
+        div.onclick = () => {
+          div.classList.toggle('sel');
+          const path = String(d);
+          if (div.classList.contains('sel')) {
+            if (!state.selectedDevices.includes(path)) state.selectedDevices.push(path);
+          } else {
+            state.selectedDevices = state.selectedDevices.filter(p => p !== path);
+          }
+          aggregateAlarmsForSelectedDevices();
+        };
+      }
+    }
     bind('#apFilterDevice','input', renderDeviceList);
     bind('#apReloadDevices','click', async()=>{ try{ const devices = await apiGet('/devices'); state._devices = Array.isArray(devices)? devices : []; renderDeviceList(); }catch(e){ toast('Reload devices failed: '+e.message); } });
 
@@ -800,7 +908,7 @@
     // Generate Bundle (local, no push)
     bind('#btnGenerate','click',()=>{
       const bundle = {
-        version: '11.2.2',
+        version: '11.3.0',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         projectVars: state.projectVars,
@@ -812,7 +920,19 @@
       download('PenaltyBoxBundle.json', JSON.stringify(bundle, null, 2));
 
       // produce a favourites-only config that conforms to the favourites schema
-      function deviceToNetworkItem(d){ const addr = String(d.address||''); const alarm = d.alarmName==null? null : String(d.alarmName); const name = alarm || (addr.split('/').pop()||addr); const obj = { item_type:'network_item', name: String(name||''), address: addr }; if(alarm) obj.header = alarm; return obj; }
+      function deviceToNetworkItem(d) {
+        // If address is in the form '<name>: <address>', extract only the address part
+        let addr = String(d.address || '');
+        const addrMatch = addr.match(/^([^:]+):\s*(.+)$/);
+        if (addrMatch && state.deviceNameCache && state.deviceNameCache[addrMatch[2]] === addrMatch[1]) {
+          addr = addrMatch[2];
+        }
+        const alarm = d.alarmName == null ? null : String(d.alarmName);
+        const name = alarm || (addr.split('/').pop() || addr);
+        const obj = { item_type: 'network_item', name: String(name || ''), address: addr };
+        if (alarm) obj.header = alarm;
+        return obj;
+      }
       function subGroupToFolder(sg){ const children = [];
         (sg.subGroups||[]).forEach(ch=> children.push(subGroupToFolder(ch)));
         (sg.devices||[]).forEach(dev=> children.push(deviceToNetworkItem(dev)));
@@ -830,7 +950,7 @@
       }
 
       const favouritesConfig = {
-        version: '11.2.2',
+        version: '11.3.0',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         folders: (state.groups||[]).map(groupToFolder)
