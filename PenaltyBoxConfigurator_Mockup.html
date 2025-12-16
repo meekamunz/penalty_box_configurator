@@ -859,11 +859,16 @@
         (state.templates||[]).forEach(t=>{
           const nm = String(t.name||''); if(!nm) return;
           if(!referenced.has(nm) && !t._userCreated) return;
-          const fname = nm || 'template.tmpl'; download(fname, makeContent(t));
+          let fname = nm || 'template';
+          if(!fname.toLowerCase().endsWith('.tmpl')) fname = fname + '.tmpl';
+          download(fname, makeContent(t));
         });
         // project/remote templates (we only have name+headers)
         (state.projectTemplates||[]).forEach(t=>{
-          if(!referenced.has(String(t.name))) return; const fname = (t.name||'project-template.tmpl'); download(fname, makeContent(t));
+          if(!referenced.has(String(t.name))) return;
+          let fname = String(t.name||'project-template');
+          if(!fname.toLowerCase().endsWith('.tmpl')) fname = fname + '.tmpl';
+          download(fname, makeContent(t));
         });
       }catch(e){ console.error('Template export failed', e); }
       toast('Bundle, favourites config and template files generated locally – no push performed');
