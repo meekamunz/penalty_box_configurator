@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Penalty Box Configurator – Interactive Mockup (v11.2.0 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
+<title>Penalty Box Configurator – Interactive Mockup (v11.2.1 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
 <style>
   :root { --bg:#0f1115; --panel:#171a21; --panel-2:#1f2430; --text:#e6e9ef; --muted:#a5adcb; --accent:#7aa2f7; --ok:#73daca; --warn:#e0af68; --err:#f7768e; --badge:#2b3245; --btn:#2d3344; --btn-h:#3b435a; --link:#86aaec; }
   *{box-sizing:border-box}
@@ -67,7 +67,7 @@
   <header>
     <div class="row" style="justify-content:space-between;">
       <div class="row" style="gap:10px; align-items:center;">
-        <h1>Penalty Box Configurator – <span class="muted">v11.2.0</span></h1>
+        <h1>Penalty Box Configurator – <span class="muted">v11.2.1</span></h1>
         <label style="display:flex; flex-direction:column;">
           <span class="muted">GV Orbit Server IP</span>
           <div class="row" style="gap:6px;align-items:center;">
@@ -249,7 +249,7 @@
     </div>
   </div>
 
-  <div class="footer">Penalty Box Configurator v11.2.0 - Minimum GV Orbit version: 3.6.0.</div>
+  <div class="footer">Penalty Box Configurator v11.2.1 - Minimum GV Orbit version: 3.6.0.</div>
 
   <!-- Connect modal -->
   <dialog id="dlgConnect">
@@ -786,6 +786,7 @@
     // Init + sample
     renderGroups();
     bind('#btnLoadSample','click',()=>{
+      if(!confirm('Load sample data: this will overwrite existing favourites. Continue?')) return;
       state.groups=[
         { id:uid(), name:'Channel 1', devices:[{address:'F110:01:02', alarmName:null},{address:'Favourites/Playout Channels/Channel 1', alarmName:'NAME'}], inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, useGlobalSettings:true, localSettings:{orientation:'Vertical',cellSpacing:8,latching:true,itemSize:320,showAddr:true,showPrio:true,showTs:true}, subGroups:[ { name:'Playout Servers', template:'example.tmpl', devices:[{address:'F110:01:09', alarmName:'HEALTH'}], subGroups:[{ name:'DB', template:'', devices:[], subGroups:[], __path:['Playout Servers','DB'] }] } ]},
         { id:uid(), name:'Channel 2', devices:[{address:'System/Exception Monitoring/Channel 2', alarmName:'STATE'}], inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, useGlobalSettings:true, localSettings:{orientation:'Vertical',cellSpacing:8,latching:true,itemSize:320,showAddr:true,showPrio:true,showTs:true}, subGroups:[ ]},
@@ -799,7 +800,7 @@
     // Generate Bundle (local, no push)
     bind('#btnGenerate','click',()=>{
       const bundle = {
-        version: '11.2.0',
+        version: '11.2.1',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         projectVars: state.projectVars,
@@ -829,7 +830,7 @@
       }
 
       const favouritesConfig = {
-        version: '11.2.0',
+        version: '11.2.1',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         folders: (state.groups||[]).map(groupToFolder)
