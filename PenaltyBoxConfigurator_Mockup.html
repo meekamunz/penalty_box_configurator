@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Penalty Box Configurator – Interactive Mockup (v11.3.8 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
+<title>Penalty Box Configurator – Interactive Mockup (v11.4.0 – .globalx exception monitors, sorts per-favourite, local+remote templates)</title>
 <style>
   :root { --bg:#0f1115; --panel:#171a21; --panel-2:#1f2430; --text:#e6e9ef; --muted:#a5adcb; --accent:#7aa2f7; --ok:#73daca; --warn:#e0af68; --err:#f7768e; --badge:#2b3245; --btn:#2d3344; --btn-h:#3b435a; --link:#86aaec; }
   *{box-sizing:border-box}
@@ -67,7 +67,7 @@
   <header>
     <div class="row" style="justify-content:space-between;">
       <div class="row" style="gap:10px; align-items:center;">
-        <h1>Penalty Box Configurator – <span class="muted">v11.3.8</span></h1>
+        <h1>Penalty Box Configurator – <span class="muted">v11.4.0</span></h1>
         <label style="display:flex; flex-direction:column;">
           <span class="muted">GV Orbit Server IP</span>
           <div class="row" style="gap:6px;align-items:center;">
@@ -253,7 +253,7 @@
     </div>
   </div>
 
-  <div class="footer">Penalty Box Configurator v11.3.8 - Minimum GV Orbit version: 3.6.0.</div>
+  <div class="footer">Penalty Box Configurator v11.4.0 - Minimum GV Orbit version: 3.6.0.</div>
 
   <!-- Connect modal -->
   <dialog id="dlgConnect">
@@ -726,6 +726,80 @@
       pre.textContent=lines.join('\n');
     }
 
+    // Sort order enum mapping: name => numeric code (matches .globalx example)
+    const sortOrderEnum = {
+      'Priority': 0,
+      'Date (Newest First)': 1,
+      'Date (Oldest First)': 2,
+      'State': 3,
+      'Address': 4
+    };
+    function sortNameToEnum(name) { return sortOrderEnum[name] ?? 0; }
+    
+    // Extract first-level items (sub-groups + devices) for an exception monitor
+    // Deduplicates device addresses and uses NAME alarm for device titles
+    function extractFirstLevelItems(group) {
+      const items = [];
+      const deviceAddresses = new Map(); // address => { priority, deviceName? }
+      
+      // First-level sub-groups
+      (group.subGroups || []).forEach(sg => {
+        items.push({ name: sg.name, priority: sg.priority ?? 1, type: 'subgroup' });
+      });
+      
+      // Collect unique device addresses from top-level devices
+      (group.devices || []).forEach(dev => {
+        const addr = String(dev.address || '');
+        if (addr && !deviceAddresses.has(addr)) {
+          const deviceName = state.deviceNameCache && state.deviceNameCache[addr];
+          deviceAddresses.set(addr, { priority: dev.priority ?? 1, deviceName });
+        }
+      });
+      
+      // Collect unique device addresses from first-level sub-groups
+      (group.subGroups || []).forEach(sg => {
+        (sg.devices || []).forEach(dev => {
+          const addr = String(dev.address || '');
+          if (addr && !deviceAddresses.has(addr)) {
+            const deviceName = state.deviceNameCache && state.deviceNameCache[addr];
+            deviceAddresses.set(addr, { priority: dev.priority ?? 1, deviceName });
+          }
+        });
+      });
+      
+      // Add unique device items
+      deviceAddresses.forEach((devInfo, addr) => {
+        items.push({ address: addr, priority: devInfo.priority, deviceName: devInfo.deviceName, type: 'device' });
+      });
+      
+      return items;
+    }
+    
+    // Generate unique UUID
+    function uuidGen() { 
+      return '{' + [1e7, 1e3, 4e3, 8e3, 1e11].join('').slice(1).replace(/[13]/g, a => (a ^ Math.random() * 16 >> a / 4).toString(16)).toUpperCase() + '}'; 
+    }
+    
+    // XML attribute escaping helper
+    function escapeXmlAttr(s) { if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&apos;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    
+    // Build a single MbyE (exception monitor) element as XML string
+    function buildMbyEElement(id, name, mbyeIdentifier, items, sorts, inError, errorPositions) {
+      const configItems = items.map(item => {
+        const title = item.type === 'device' 
+          ? (item.deviceName || item.address) 
+          : (item.name || item.address);
+        return `                    <item address="${escapeXmlAttr(item.address || item.name)}" priority="${item.priority}" image="" title="${escapeXmlAttr(title)}" link="" link_state="false" link_file=""/>`;
+      }).join('\n');
+      return `        <MbyE id="${escapeXmlAttr(id)}" name="${escapeXmlAttr(name)}">\n            <properties>\n                <p:mbye_identifier>${escapeXmlAttr(mbyeIdentifier)}</p:mbye_identifier>\n                <p:mbye_config>\n${configItems}\n                </p:mbye_config>\n                <p:primary_sort_order>${sortNameToEnum(sorts.p)}</p:primary_sort_order>\n                <p:secondary_sort_order>${sortNameToEnum(sorts.s)}</p:secondary_sort_order>\n                <p:tertiary_sort_order>${sortNameToEnum(sorts.t)}</p:tertiary_sort_order>\n                <p:in_error_state>${inError}</p:in_error_state>\n                <p:error_positions>${errorPositions}</p:error_positions>\n            </properties>\n        </MbyE>`;
+    }
+    
+    // Build complete .globalx XML document
+    function buildGlobalxXml(masterMbyE, favouriteMbyEs) {
+      const allMbyEs = [masterMbyE, ...favouriteMbyEs].join('\n');
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<!--This document was created by Penalty Box Configurator v11.4.0-->\n<schematic xmlns="http://www.snellgroup.com/controlandmonitoring/fusion/schematic/2.0" xmlns:p="http://www.snellgroup.com/controlandmonitoring/fusion/properties/2.0" xmlns:s="http://www.snellgroup.com/controlandmonitoring/fusion/styles/2.0">\n    <variables/>\n    <properties/>\n    <style/>\n    <behaviours>\n${allMbyEs}\n    </behaviours>\n    <bindings/>\n    <layout/>\n    <styles/>\n    <widgets/>\n</schematic>`;
+    }
+    
     function validateGroup(g){ if(!g.name) return {ok:false,msg:'Name required'}; if(state.groups.filter(x=>x!==g && x.name===g.name).length) return {ok:false,msg:'Name must be unique'}; let devices=(g.devices||[]).length; (function count(sgs){(sgs||[]).forEach(s=>{devices+=(s.devices||[]).length; count(s.subGroups);});})(g.subGroups); if(devices===0) return {ok:false,msg:'Add devices or alarms at group or sub-group level'}; return {ok:true,msg:'Complete'}; }
 
     // Alarm Picker with dual filters & aggregation
@@ -1030,7 +1104,7 @@
       // Ensure favourites in the exported bundle always use the MbyE identifier as their id
       (state.groups||[]).forEach(ensureGroupId);
       const bundle = {
-        version: '11.3.8',
+        version: '11.4.0',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         projectVars: state.projectVars,
@@ -1072,13 +1146,53 @@
       }
 
       const favouritesConfig = {
-        version: '11.3.8',
+        version: '11.4.0',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         folders: (state.groups||[]).map(groupToFolder)
       };
 
       download('penaltyBoxFavourites.json', JSON.stringify(favouritesConfig, null, 2));
+      
+      // Generate .globalx file with exception monitors
+      try {
+        if(!state.master.sorts) state.master.sorts = defaultSorts();
+        
+        // Build master exception monitor (aggregates all favourites groups)
+        const masterItems = (state.groups||[]).map(g => ({
+          address: `System/Exception Monitoring/${g.id}`,
+          name: g.name,
+          priority: 1
+        }));
+        const masterMbyE = buildMbyEElement(
+          uuidGen(),
+          'Penalty Box Master',
+          'EM::Penalty Box',
+          masterItems,
+          state.master.sorts,
+          state.master.inError ?? 50,
+          state.master.errorPositions ?? 10
+        );
+        
+        // Build per-favourite exception monitors
+        const favouriteMbyEs = (state.groups||[]).map(g => {
+          const items = extractFirstLevelItems(g);
+          const sorts = (g.useGlobalSettings!==false) ? state.master.sorts : (g.sorts || defaultSorts());
+          return buildMbyEElement(
+            uuidGen(),
+            g.name,
+            g.id,
+            items,
+            sorts,
+            g.inError ?? 50,
+            g.errorPositions ?? 2
+          );
+        });
+        
+        const globalxXml = buildGlobalxXml(masterMbyE, favouriteMbyEs);
+        download('penalty_box.globalx', globalxXml);
+      } catch(e) { console.error('Error generating .globalx file:', e); }
+      
       // also generate .tmpl files for each known template (local + project)
       try{
         const makeContent = (tpl)=>{
