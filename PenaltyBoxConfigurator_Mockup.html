@@ -53,8 +53,8 @@
   dialog .actions{padding:12px;border-top:1px solid #2b3245;display:flex;gap:8px;justify-content:flex-end}
   .small{font-size:12px}
   .code{background:#0b0f1a;border:1px solid #20283e;padding:8px;border-radius:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#cbd5f7;white-space:pre-wrap}
-  .listbox{height:240px; width:100%; background:#0f1320; border:1px solid #2b3245; border-radius:6px; padding:6px; overflow:auto;}
-  .listbox .itm{padding:6px 8px; border-bottom:1px dashed #232a3d; cursor:pointer}
+  .listbox{height:240px; width:100%; background:#0f1320; border:1px solid #2b3245; border-radius:6px; padding:6px; overflow:auto; user-select:none; -webkit-user-select:none; -ms-user-select:none; -moz-user-select:none; -webkit-tap-highlight-color:transparent}
+  .listbox .itm{padding:6px 8px; border-bottom:1px dashed #232a3d; cursor:pointer; user-select:none; -webkit-user-select:none; -ms-user-select:none; -moz-user-select:none}
   .listbox .itm:hover{background:#151a2a}
   .listbox .itm.sel{background:#1b2336}
   .state-pill{display:inline-block; padding:2px 6px; border-radius:999px; font-size:11px; margin-left:6px; border:1px solid #2b3245}
@@ -109,6 +109,12 @@
         <div class="muted">Select a favourite (alarm group) to edit, or click <strong>New Favourite</strong>.</div>
       </div>
       <div class="stack" id="editor" style="display:none;">
+
+        <!-- Editor actions moved to top -->
+        <div class="row" style="justify-content:flex-end; gap:8px;">
+          <button class="btn-primary" id="btnSaveGroup">Save Favourite</button>
+          <button class="btn-danger" id="btnDeleteGroup">Delete Favourite</button>
+        </div>
 
         <!-- Editor header: Group name, identifier, error/sorting (added back for v11 JS compatibility) -->
         <div class="grid-3" style="margin-bottom:8px;">
@@ -217,10 +223,7 @@
           </div>
         </div>
 
-        <div class="section">
-          <button class="btn-primary" id="btnSaveGroup">Save Favourite</button>
-          <button class="btn-danger" id="btnDeleteGroup">Delete Favourite</button>
-        </div>
+        
       </div>
     </div>
 
@@ -356,19 +359,26 @@
       <div class="grid-2">
         <div>
           <label class="small">Device filter</label>
-          <input id="apFilterDevice" class="search" placeholder="Filter devices (supports paths like Favourites/...)"/>
+          <div class="row" style="gap:8px;align-items:center;">
+            <input id="apFilterDevice" class="search" placeholder="Filter devices (supports paths like Favourites/...)"/>
+          </div>
           <div class="listbox" id="apDeviceList"></div>
         </div>
         <div>
-          <label class="small">Alarm filter</label>
-          <div class="row" style="gap:8px;align-items:center;">
-            <input id="apFilterAlarm" class="search" placeholder="Filter alarms (by name)"/>
-            <select id="apAlarmSort" style="min-width:160px;">
-              <option value="az">A-Z</option>
-              <option value="za">Z-A</option>
-              <option value="dup-asc">Duplicates ↑</option>
-              <option value="dup-desc">Duplicates ↓</option>
-            </select>
+          <div class="row" style="gap:8px;align-items:flex-end;">
+            <div style="flex:1;">
+              <label class="small">Alarm filter</label>
+              <input id="apFilterAlarm" class="search" placeholder="Filter alarms (by name)"/>
+            </div>
+            <div>
+              <label class="small">Sort</label>
+              <select id="apAlarmSort" style="min-width:160px;">
+                <option value="az">A-Z</option>
+                <option value="za">Z-A</option>
+                <option value="dup-asc">Duplicates ↑</option>
+                <option value="dup-desc">Duplicates ↓</option>
+              </select>
+            </div>
           </div>
           <div class="listbox" id="apAlarmList"></div>
         </div>
@@ -433,6 +443,8 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
+    // Prevent native text selection in Alarm Picker lists (keeps shift/ctrl multi-select UX clean)
+    function blockSelection(el){ if(!el) return; el.addEventListener('selectstart', e=> e.preventDefault()); }
     const $ = (sel, root=document) => root.querySelector(sel);
     const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
     const bind = (sel, event, handler) => { const el=$(sel); if(!el){ console.warn('Missing element', sel); return; } el.addEventListener(event, handler); };
@@ -827,7 +839,19 @@
 
     // Alarm Picker with dual filters & aggregation
     bind('#apCancel','click',()=> dlg('#dlgAlarmPicker','close'));
-    async function openAlarmPicker(){ $('#apDeviceList').innerHTML=''; $('#apAlarmList').innerHTML=''; $('#apFilterAlarm').value=''; $('#apFilterDevice').value=''; state.selectedDevices=[]; state.agg={byName:new Map(),flat:[]}; dlg('#dlgAlarmPicker','open'); if(state._devices.length===0){ try{ const devices = await apiGet('/devices'); state._devices = Array.isArray(devices)? devices : []; }catch(e){ toast('Load devices failed: '+e.message); } } renderDeviceList(); renderAlarmList(); }
+    async function openAlarmPicker(){
+      $('#apDeviceList').innerHTML=''; $('#apAlarmList').innerHTML='';
+      $('#apFilterAlarm').value=''; $('#apFilterDevice').value='';
+      state.selectedDevices=[]; state.agg={byName:new Map(),flat:[]};
+      // reset last-click indices for range selection
+      state._apLastDeviceIndex = null; state._apLastAlarmIndex = null;
+      dlg('#dlgAlarmPicker','open');
+      if(state._devices.length===0){
+        try{ const devices = await apiGet('/devices'); state._devices = Array.isArray(devices)? devices : []; }
+        catch(e){ toast('Load devices failed: '+e.message); }
+      }
+      renderDeviceList(); renderAlarmList();
+    }
     // Cache for device names to avoid redundant API calls
     if (!state.deviceNameCache) state.deviceNameCache = {};
     async function getDeviceName(address) {
@@ -850,9 +874,10 @@
         .filter(d => !q || String(d).toLowerCase().includes(q))
         .sort((a, b) => String(a).localeCompare(String(b)));
       // Show loading placeholders
-      devices.forEach(d => {
+      devices.forEach((d, idx) => {
         const div = document.createElement('div');
         div.className = 'itm';
+        div.dataset.index = String(idx);
         div.innerHTML = `${escapeHtml(d)} <span class="muted small">(loading...)</span>`;
         box.appendChild(div);
       });
@@ -864,13 +889,44 @@
         const label = name ? `${escapeHtml(name)}: ${escapeHtml(d)}` : escapeHtml(d);
         const div = box.children[i];
         div.innerHTML = `${label} ${isFav ? '<span class="state-pill state-ok">fav</span>' : ''}`;
-        div.onclick = () => {
-          div.classList.toggle('sel');
-          const path = String(d);
-          if (div.classList.contains('sel')) {
-            if (!state.selectedDevices.includes(path)) state.selectedDevices.push(path);
+        div.onclick = (e) => {
+          const idx = i;
+          const children = Array.from(box.children);
+          const selectRange = (start, end) => {
+            const lo = Math.min(start, end), hi = Math.max(start, end);
+            for(let j=lo; j<=hi; j++){
+              const node = children[j]; if(!node) continue;
+              if(!node.classList.contains('sel')) node.classList.add('sel');
+              const pathJ = String(devices[j]);
+              if(!state.selectedDevices.includes(pathJ)) state.selectedDevices.push(pathJ);
+            }
+          };
+          const clearAll = () => {
+            children.forEach(n=> n.classList.remove('sel'));
+            state.selectedDevices = [];
+          };
+          if(e.shiftKey && state._apLastDeviceIndex != null){
+            // extend selection with range; clear unless Ctrl/meta held
+            if(!(e.ctrlKey || e.metaKey)) clearAll();
+            selectRange(state._apLastDeviceIndex, idx);
+            state._apLastDeviceIndex = idx;
+          } else if(e.ctrlKey || e.metaKey){
+            // toggle without clearing
+            const path = String(d);
+            if(div.classList.contains('sel')){
+              div.classList.remove('sel');
+              state.selectedDevices = state.selectedDevices.filter(p=>p!==path);
+            }else{
+              div.classList.add('sel');
+              if(!state.selectedDevices.includes(path)) state.selectedDevices.push(path);
+            }
+            state._apLastDeviceIndex = idx;
           } else {
-            state.selectedDevices = state.selectedDevices.filter(p => p !== path);
+            // single selection
+            clearAll();
+            div.classList.add('sel');
+            state.selectedDevices.push(String(d));
+            state._apLastDeviceIndex = idx;
           }
           aggregateAlarmsForSelectedDevices();
         };
@@ -898,12 +954,34 @@
     bind('#apFilterAlarm','input', aggregateAlarmsForSelectedDevices);
     bind('#apAlarmSort','change', aggregateAlarmsForSelectedDevices);
 
-    function renderAlarmList(){ const box=$('#apAlarmList'); box.innerHTML=''; (state.agg.flat||[]).forEach(item=>{ const cls='state-ok'; const div=document.createElement('div'); div.className='itm';
-      div.dataset.name=item.name; div.dataset.count=item.count; div.innerHTML = `<strong>${escapeHtml(item.name)}</strong> <span class='muted small'>${escapeHtml(item.path)}</span>
+    function renderAlarmList(){
+      const box=$('#apAlarmList'); box.innerHTML='';
+      (state.agg.flat||[]).forEach((item, idx)=>{
+        const cls='state-ok'; const div=document.createElement('div'); div.className='itm';
+        div.dataset.index=String(idx);
+        div.dataset.name=item.name; div.dataset.count=item.count; div.innerHTML = `<strong>${escapeHtml(item.name)}</strong> <span class='muted small'>${escapeHtml(item.path)}</span>
         <span class='state-pill ${cls}' title='aggregated from ${item.count} device(s)'>${item.count} dev</span>`;
-      div.onclick=()=>{ div.classList.toggle('sel'); };
-      box.appendChild(div);
-    }); }
+        div.onclick=(e)=>{
+          const children = Array.from(box.children);
+          const i = idx;
+          const clearAll = ()=> children.forEach(n=> n.classList.remove('sel'));
+          const selectRange = (a,b)=>{ const lo=Math.min(a,b), hi=Math.max(a,b); for(let j=lo;j<=hi;j++){ children[j]?.classList.add('sel'); } };
+          if(e.shiftKey && state._apLastAlarmIndex!=null){
+            if(!(e.ctrlKey||e.metaKey)) clearAll();
+            selectRange(state._apLastAlarmIndex, i);
+            state._apLastAlarmIndex = i;
+          } else if(e.ctrlKey || e.metaKey){
+            div.classList.toggle('sel');
+            state._apLastAlarmIndex = i;
+          } else {
+            clearAll();
+            div.classList.add('sel');
+            state._apLastAlarmIndex = i;
+          }
+        };
+        box.appendChild(div);
+      });
+    }
 
     bind('#apChoose','click',()=>{
       const selDevs = $$('#apDeviceList .itm.sel');
@@ -979,6 +1057,9 @@
 
     // Template Browser (HTTP bridge + Local)
     bind('#btnTemplateBrowser','click',()=>{ const ip=($('#cfgIp').value||'').trim()||'127.0.0.1'; const base=`http://${ip}:8080`; state.tplApi.base = state.tplApi.base || base; $('#tbUser').value = state.tplApi.user || ''; $('#tbPass').value = state.tplApi.pass || ''; renderRepoList([]); renderTplList([]); $('#tbView').textContent='No template selected.'; dlg('#dlgTemplateBrowser','open'); refreshTemplateBrowserView(); });
+    // Apply selection blocking to Alarm Picker lists
+    blockSelection($('#apDeviceList'));
+    blockSelection($('#apAlarmList'));
     bind('#tbClose','click',()=>{ dlg('#dlgTemplateBrowser','close'); if(state._returnToPicker){ state._returnToPicker=false; // reopen pick dialog and refresh its view
       try{ renderPickTemplateList(); }catch(e){} dlg('#dlgPickTemplate','open'); } });
     bind('#tbLoadRepos','click', async()=>{ await loadReposAndTemplates(); });
