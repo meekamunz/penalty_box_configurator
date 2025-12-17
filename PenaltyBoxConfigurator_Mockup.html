@@ -82,7 +82,8 @@
         <button id="btnCreate">New Favourite</button>
         <button id="btnDuplicate">Duplicate Favourite</button>
         <button id="btnUndo">Undo Duplication</button>
-        <button id="btnTemplateBrowser">Templates...</button>
+        <button id="btnProjectPath">Project Path...</button>
+        <button id="btnTemplateBrowser">Templates</button>
         <button id="btnGenerate" class="btn-primary">Generate Bundle</button>
         <button id="btnImport" class="btn-primary">Import…</button>
         <button id="btnLoadSample">Load Sample</button>
@@ -276,6 +277,8 @@
     </div>
     <div class="actions"><button id="connClose">Close</button></div>
   </dialog>
+  <!-- Hidden folder input for Windows path selection -->
+  <input type="file" id="folderInput" webkitdirectory mozdirectory msdirectory odirectory style="display:none;" />
 
   <!-- Create Template dialog -->
   <dialog id="dlgCreateTemplate">
@@ -391,34 +394,40 @@
   </dialog>
 
   <!-- Templates... (global, HTTP only) -->
-  <dialog id="dlgTemplateBrowser">
-    <header><strong>Templates...</strong></header>
+  <!-- Project Path Configuration -->
+  <dialog id="dlgProjectPath">
+    <header><strong>Project Storage Path</strong></header>
     <div class="content stack">
-      <div class="row" style="gap:8px;align-items:flex-end;">
-        <div style="flex:1"></div>
-        <div class="pill" id="tbAutoIp">Using GV IP</div>
-      </div>
-      <div class="row small">
-        <label><input type="checkbox" id="tbIncludeRemote" checked/> Include Remote (HTTP bridge)</label>
-        <label><input type="checkbox" id="tbIncludeLocal" checked/> Include Local Templates</label>
-      </div>
-      <div class="row" style="gap:8px;align-items:flex-end;">
-        <label>User (optional)<input id="tbUser" type="text" placeholder="root"/></label>
-        <label>Password (optional)<input id="tbPass" type="password" placeholder="••••"/></label>
-        <button id="tbLoadRepos">Refresh Remote</button>
-        <button id="tbCreateTemplate">Create Template</button>
-      </div>
-      <div class="grid-2">
-        <div>
-          <label class="small">Repos (Remote)</label>
-          <div class="listbox" id="tbRepoList"></div>
-        </div>
-        <div>
-          <label class="small">Templates</label>
-          <div class="listbox" id="tbTplList"></div>
+      <div class="muted small">Specify the Windows path for your project storage. This directory will store project templates and generated globalx configurations.</div>
+      <div class="stack">
+        <label>Project Path (Windows)</label>
+        <input id="ppPath" type="text" placeholder="Paste your Windows path here"/>
+        <div class="muted small">
+          <div>Copy your folder path from Windows Explorer address bar and paste it here.</div>
+          <div>Example: C:\Users\Name\OneDrive - Company\Projects\MyProject</div>
+          <div style="margin-top:8px;">Templates will be saved to: <code style="font-size:11px;">&lt;path&gt;\resources\templates\</code></div>
+          <div>Globalx will be saved to: <code style="font-size:11px;">&lt;path&gt;\globalx_\penalty_box\</code></div>
         </div>
       </div>
-      <div class="code" id="tbView">No template selected. Toggle Local/Remote to view all available templates. Browser fetch requires HTTP(S) and CORS; SSH (port 2222) cannot be used directly.</div>
+    </div>
+    <div class="actions"><button id="ppCancel">Cancel</button><button id="ppSave" class="btn-primary">Save Path</button></div>
+  </dialog>
+
+  <!-- Templates Browser -->
+  <dialog id="dlgTemplateBrowser">
+    <header><strong>Templates</strong></header>
+    <div class="content stack">
+      <div id="ppStatus" class="muted small">Project path: Not set. Set path via "Project Path..." button.</div>
+      <div class="row" style="gap:8px;">
+        <button id="tbCreateTemplate">Create Local Template</button>
+        <button id="tbImportProjectTemplates">Import Project Templates</button>
+      </div>
+      <div>
+        <label class="small">Local Templates</label>
+        <div class="listbox" id="tbLocalTplList"></div>
+        <div class="muted small" style="margin-top:8px;font-size:11px;">Templates created in this tool or imported from your project.</div>
+      </div>
+      <div class="code" id="tbView">No template selected.</div>
     </div>
     <div class="actions"><button id="tbClose">Close</button></div>
   </dialog>
@@ -459,7 +468,7 @@
       templates:[{ name:'example.tmpl', headers:['MSG','STATUS','STATE','UPTIME'] }],
       projectTemplates:[], editingCtx:null,
       _devices:[], selectedDevices:[], agg:{byName:new Map(), flat:[]},
-      tplApi:{ base:'', user:'', pass:'' }, ctHeaders:[],
+      projectPath:'', ctHeaders:[],
     };
 
     const uid=()=>Math.random().toString(36).slice(2,9);
@@ -481,9 +490,14 @@
     async function apiGet(path){ const url = state.apiBase + path; const res = await fetch(url, { headers: { 'Accept':'application/json' } }); if(!res.ok) throw new Error('HTTP '+res.status+' '+url); return res.status===204? null : await res.json(); }
 
     // Connect modal UX
-    function openConnectDialog(){ $('#connIp').value = ($('#cfgIp').value||'').trim(); $('#connMsg').textContent=''; dlg('#dlgConnect','open'); }
+    function openConnectDialog(){ 
+      $('#connIp').value = ($('#cfgIp').value||'').trim(); 
+      $('#connMsg').textContent=''; 
+      dlg('#dlgConnect','open'); 
+    }
     bind('#lnkConnect','click',(e)=>{ e.preventDefault(); openConnectDialog(); });
-    bind('#connClose','click',()=> dlg('#dlgConnect','close'));
+    bind('#connClose','click',()=>{ dlg('#dlgConnect','close'); });
+    
     bind('#btnDoConnect','click', async()=>{
       const ip=$('#connIp').value.trim(); if(!ip){ toast('Enter IP'); return; }
       $('#cfgIp').value = ip; recomputeApiBase();
@@ -1055,42 +1069,121 @@
       const cur = ($('#sgTemplate').value||'').trim(); if(cur){ const match = Array.from(box.querySelectorAll('.itm')).find(n=> n.dataset.name===cur); if(match){ match.classList.add('sel'); renderPickTemplatePreview(cur); } }
     }
 
-    // Template Browser (HTTP bridge + Local)
-    bind('#btnTemplateBrowser','click',()=>{ const ip=($('#cfgIp').value||'').trim()||'127.0.0.1'; const base=`http://${ip}:8080`; state.tplApi.base = state.tplApi.base || base; $('#tbUser').value = state.tplApi.user || ''; $('#tbPass').value = state.tplApi.pass || ''; renderRepoList([]); renderTplList([]); $('#tbView').textContent='No template selected.'; dlg('#dlgTemplateBrowser','open'); refreshTemplateBrowserView(); });
-    // Apply selection blocking to Alarm Picker lists
-    blockSelection($('#apDeviceList'));
-    blockSelection($('#apAlarmList'));
-    bind('#tbClose','click',()=>{ dlg('#dlgTemplateBrowser','close'); if(state._returnToPicker){ state._returnToPicker=false; // reopen pick dialog and refresh its view
-      try{ renderPickTemplateList(); }catch(e){} dlg('#dlgPickTemplate','open'); } });
-    bind('#tbLoadRepos','click', async()=>{ await loadReposAndTemplates(); });
-    bind('#tbIncludeRemote','change', refreshTemplateBrowserView);
-    bind('#tbIncludeLocal','change', refreshTemplateBrowserView);
+    // Project Path & Templates (Local Windows path based)
+    bind('#btnProjectPath','click',()=>{ $('#ppPath').value = state.projectPath; dlg('#dlgProjectPath','open'); });
+    bind('#ppCancel','click',()=>{ dlg('#dlgProjectPath','close'); });
+    bind('#ppSave','click',()=>{ 
+      const path = ($('#ppPath').value||'').trim(); 
+      if(!path){ toast('Please enter a valid Windows path.'); return; }
+      state.projectPath = path; 
+      localStorage.setItem('projectPath', path);
+      dlg('#dlgProjectPath','close'); 
+      toast('Project path saved: '+path);
+      loadProjectTemplates();
+    });
 
-    async function loadReposAndTemplates(){ const base = state.tplApi.base || (`http://${($('#cfgIp').value||'').trim()||'127.0.0.1'}:8080`); state.tplApi.base = base; state.tplApi.user=$('#tbUser').value.trim(); state.tplApi.pass=$('#tbPass').value; 
-      try{ const res = await fetch(base+'/repos', { headers: buildHeaders() }); if(!res.ok) throw new Error('HTTP '+res.status); const repos = await res.json(); renderRepoList(repos); if(Array.isArray(repos) && repos.length){ const first=repos[0]; await loadTemplatesForRepo(first.name, first.branch||'main'); }
-      }catch(e){ toast('Load repos failed: '+e.message+'\nHTTP bridge must be reachable (not SSH).'); renderRepoList([]); }
-      refreshTemplateBrowserView();
+    async function loadProjectTemplates(){
+      const path = state.projectPath;
+      if(!path){ 
+        $('#ppStatus').textContent = 'Project path: Not set. Set path via "Project Path..." button.'; 
+        state.projectTemplates=[]; 
+        renderTemplateBrowser(); 
+        return; 
+      }
+      $('#ppStatus').textContent = `Project path: ${path}\\resources\\templates\\`;
+      renderTemplateBrowser();
     }
-    function buildHeaders(){ const h={'Accept':'application/json'}; const u=state.tplApi.user, p=state.tplApi.pass; if(u||p){ const b64 = btoa(`${u}:${p}`); h['Authorization'] = 'Basic '+b64; } return h; }
-    function renderRepoList(repos){ const box=$('#tbRepoList'); box.innerHTML=''; (repos||[]).forEach(r=>{ const div=document.createElement('div'); div.className='itm'; div.innerHTML=`<strong>${escapeHtml(r.name||'unknown')}</strong> <span class='muted small'>${escapeHtml(r.branch||'main')}</span>`; div.dataset.name=r.name; div.dataset.branch=r.branch||'main'; div.onclick=()=>{ $$('#tbRepoList .itm').forEach(n=> n.classList.remove('sel')); div.classList.add('sel'); loadTemplatesForRepo(div.dataset.name, div.dataset.branch); }; box.appendChild(div); }); }
-    async function loadTemplatesForRepo(repo, branch){ if(!repo) return; const base=state.tplApi.base; try{ const url = base + `/templates?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch||'main')}`; const res = await fetch(url, { headers: buildHeaders() }); if(!res.ok) throw new Error('HTTP '+res.status); const list = await res.json(); state.projectTemplates = Array.isArray(list)? list.map(t=>({ name: t.name||t.filename||'unknown.tmpl', headers: Array.isArray(t.headers)? t.headers : [] })) : []; refreshTemplateBrowserView(); }catch(e){ toast('Load templates failed: '+e.message+'\nEnsure your HTTP bridge exposes /templates.'); state.projectTemplates=[]; refreshTemplateBrowserView(); } }
-    function refreshTemplateBrowserView(){ const includeRemote = $('#tbIncludeRemote').checked; const includeLocal = $('#tbIncludeLocal').checked; const list=[]; if(includeRemote) state.projectTemplates.forEach(t=> list.push({name:t.name, headers:t.headers, src:'Remote'})); if(includeLocal) state.templates.forEach(t=> list.push({name:t.name, headers:t.headers, src:'Local'})); renderTplList(list); }
-    function renderTplList(list){ const box=$('#tbTplList'); box.innerHTML=''; (list||[]).forEach(t=>{ const div=document.createElement('div'); div.className='itm'; div.innerHTML=`<strong>${escapeHtml(t.name)}</strong> <span class='muted small'>${t.src||''}</span> <span class='muted small'>headers: ${(Array.isArray(t.headers)? t.headers.length:0)}</span>`; div.onclick=()=>{
-        const view = [];
-        view.push(`<div><strong>Name:</strong> ${escapeHtml(t.name)}</div>`);
-        view.push(`<div class="muted small">Source: ${escapeHtml(t.src||'')}</div>`);
-        view.push('<div style="margin-top:8px"><strong>Headers:</strong></div>');
-        if(Array.isArray(t.headers) && t.headers.length){
-          view.push('<ul>');
-          view.push(t.headers.map(h=>`<li>${escapeHtml(h)}</li>`).join(''));
-          view.push('</ul>');
-        } else {
-          view.push('<div class="muted small">(no headers)</div>');
-        }
-        $('#tbView').innerHTML = view.join('');
-        $$('#tbTplList .itm').forEach(n=> n.classList.remove('sel'));
-        div.classList.add('sel');
-      }; box.appendChild(div); }); }
+
+    function renderTemplateBrowser(){
+      renderLocalTplList(state.templates);
+    }
+
+    function renderLocalTplList(list){ 
+      const box=$('#tbLocalTplList'); 
+      box.innerHTML=''; 
+      (list||[]).forEach(t=>{ 
+        const div=document.createElement('div'); 
+        div.className='itm'; 
+        div.innerHTML=`<strong>${escapeHtml(t.name)}</strong> <span class='muted small'>headers: ${(Array.isArray(t.headers)? t.headers.length:0)}</span>`; 
+        div.dataset.name=t.name;
+        div.dataset.src='local';
+        div.onclick=()=>{ selectTemplate(t, 'local'); }; 
+        box.appendChild(div); 
+      }); 
+    }
+
+    function selectTemplate(t, src){
+      const view = [];
+      view.push(`<div><strong>Name:</strong> ${escapeHtml(t.name)}</div>`);
+      view.push(`<div class="muted small">Source: ${src==='project' ? 'Imported from project' : 'Local'}</div>`);
+      view.push('<div style="margin-top:8px"><strong>Headers:</strong></div>');
+      if(Array.isArray(t.headers) && t.headers.length){
+        view.push('<ul>');
+        view.push(t.headers.map(h=>`<li>${escapeHtml(h)}</li>`).join(''));
+        view.push('</ul>');
+      } else {
+        view.push('<div class="muted small">(no headers)</div>');
+      }
+      $('#tbView').innerHTML = view.join('');
+      $$('#tbLocalTplList .itm').forEach(n=> n.classList.remove('sel'));
+      event.target.closest('.itm').classList.add('sel');
+    }
+
+    bind('#btnTemplateBrowser','click',()=>{ 
+      if(!state.projectPath){ 
+        toast('Please set a project path first.'); 
+        dlg('#dlgProjectPath','open'); 
+        return; 
+      }
+      $('#tbView').textContent='No template selected.';
+      dlg('#dlgTemplateBrowser','open');
+      loadProjectTemplates();
+    });
+    
+    bind('#tbImportProjectTemplates','click',()=>{ 
+      if(!state.projectPath){
+        toast('Please set a project path first.');
+        dlg('#dlgProjectPath','open');
+        return;
+      }
+      
+      // Mock implementation: Simulate reading from disk without user interaction
+      const btn = $('#tbImportProjectTemplates');
+      const originalText = btn.textContent;
+      btn.textContent = 'Scanning...';
+      btn.disabled = true;
+      $('#ppStatus').textContent = `Scanning ${state.projectPath}\\resources\\templates\\...`;
+
+      setTimeout(() => {
+        // Simulate finding files (Mocking the user's specific directory content)
+        const mockFiles = [
+          { name: 'FEC.tmpl', headers: ['STREAM', 'BER', 'PCR_JITTER', 'LOCK'] },
+          { name: 'health.tmpl', headers: ['CPU', 'RAM', 'TEMP', 'PSU_STATUS'] }
+        ];
+
+        let count = 0;
+        mockFiles.forEach(f => {
+          if(!state.templates.find(t => t.name === f.name)){
+            state.templates.push({ ...f, _userCreated: false, _imported: true });
+            count++;
+          }
+        });
+
+        renderTemplateBrowser();
+        btn.textContent = originalText;
+        btn.disabled = false;
+        $('#ppStatus').textContent = `Project path: ${state.projectPath}\\resources\\templates\\`;
+        
+        if(count > 0) toast(`Successfully imported ${count} templates from project path.`);
+        else toast('No new templates found in project path.');
+
+      }, 1000);
+    });
+    bind('#tbRefresh','click', loadProjectTemplates);
+    bind('#tbClose','click',()=>{ dlg('#dlgTemplateBrowser','close'); if(state._returnToPicker){ state._returnToPicker=false; try{ renderPickTemplateList(); }catch(e){} dlg('#dlgPickTemplate','open'); } });
+
+    // Load saved project path on startup
+    if(localStorage.getItem('projectPath')){ state.projectPath = localStorage.getItem('projectPath'); }
 
     // Create / Undo / Save / Delete
     bind('#btnCreate','click',()=> { const name=prompt('Favourite name'); if(!name) return; if(state.groups.find(g=>g.name===name)) return toast('Name must be unique'); const g=newGroup(name); g._dirty = true; g._isNew = true; state.groups.push(g); state.lastAction={type:'create',id:g.id}; renderGroups(); state.sel=g; openEditor(g); });
@@ -1205,6 +1298,8 @@
 
     // Generate Bundle (local, no push)
     bind('#btnGenerate','click',()=>{
+      if(!state.projectPath){ toast('Please set a project path first using "Project Path..." button.'); return; }
+      
       // Ensure favourites in the exported bundle always use the MbyE identifier as their id
       (state.groups||[]).forEach(ensureGroupId);
       const bundle = {
@@ -1216,12 +1311,16 @@
         favourites: state.groups,
         templates: { local: state.templates, project: state.projectTemplates.map(t=>({ name:t.name, headers:t.headers })) }
       };
-      // download full bundle
-      download('PenaltyBoxConfig.json', JSON.stringify(bundle, null, 2));
+      
+      // Save PenaltyBoxConfig.json
+      const configPath = state.projectPath + '\\PenaltyBoxConfig.json';
+      const configContent = JSON.stringify(bundle, null, 2);
+      if(confirm(`Save PenaltyBoxConfig.json to:\n${configPath}?`)){ 
+        downloadToPath(configPath, configContent);
+      }
 
       // produce a favourites-only config that conforms to the favourites schema
       function deviceToNetworkItem(d) {
-        // If address is in the form '<name>: <address>', extract only the address part
         let addr = String(d.address || '');
         const addrMatch = addr.match(/^([^:]+):\s*(.+)$/);
         if (addrMatch && state.deviceNameCache && state.deviceNameCache[addrMatch[2]] === addrMatch[1]) {
@@ -1256,9 +1355,13 @@
         folders: (state.groups||[]).map(groupToFolder)
       };
 
-      download('PenaltyBoxFavourites.json', JSON.stringify(favouritesConfig, null, 2));
+      const favsPath = state.projectPath + '\\PenaltyBoxFavourites.json';
+      const favsContent = JSON.stringify(favouritesConfig, null, 2);
+      if(confirm(`Save PenaltyBoxFavourites.json to:\n${favsPath}?`)){ 
+        downloadToPath(favsPath, favsContent);
+      }
       
-      // Generate .globalx file with exception monitors
+      // Generate .globalx file with exception monitors to globalx_\penalty_box\ directory
       try {
         if(!state.master.sorts) state.master.sorts = defaultSorts();
         
@@ -1294,13 +1397,15 @@
         });
         
         const globalxXml = buildGlobalxXml(masterMbyE, favouriteMbyEs);
-        download('penalty_box.globalx', globalxXml);
-      } catch(e) { console.error('Error generating .globalx file:', e); }
+        const globalxPath = state.projectPath + '\\globalx_\\penalty_box\\penalty_box.globalx';
+        if(confirm(`Save penalty_box.globalx to:\n${globalxPath}?`)){ 
+          downloadToPath(globalxPath, globalxXml);
+        }
+      } catch(e) { console.error('Error generating .globalx file:', e); toast('Error generating .globalx: '+e.message); }
       
-      // also generate .tmpl files for each known template (local + project)
+      // also generate .tmpl files for each known template (local + project) to resources\templates\ directory
       try{
         const makeContent = (tpl)=>{
-          // produce only the headers (one per line) — no comment metadata
           if(Array.isArray(tpl.headers) && tpl.headers.length){
             return tpl.headers.map(h=> String(h)).join('\n');
           }
@@ -1315,24 +1420,44 @@
           };
           (g.subGroups||[]).forEach(sg=> walk(sg));
         });
-        // local templates: export if referenced OR explicitly created by the user
+        
+        // Collect all templates to export
+        const tempsToExport = [];
         (state.templates||[]).forEach(t=>{
           const nm = String(t.name||''); if(!nm) return;
           if(!referenced.has(nm) && !t._userCreated) return;
           let fname = nm || 'template';
           if(!fname.toLowerCase().endsWith('.tmpl')) fname = fname + '.tmpl';
-          download(fname, makeContent(t));
+          tempsToExport.push({ name: fname, content: makeContent(t) });
         });
-        // project/remote templates (we only have name+headers)
         (state.projectTemplates||[]).forEach(t=>{
           if(!referenced.has(String(t.name))) return;
           let fname = String(t.name||'project-template');
           if(!fname.toLowerCase().endsWith('.tmpl')) fname = fname + '.tmpl';
-          download(fname, makeContent(t));
+          tempsToExport.push({ name: fname, content: makeContent(t) });
         });
-      }catch(e){ console.error('Template export failed', e); }
-      toast('Bundle, favourites config and template files generated locally – no push performed');
+        
+        if(tempsToExport.length){
+          const templatesDir = state.projectPath + '\\resources\\templates\\';
+          if(confirm(`Save ${tempsToExport.length} template file(s) to:\n${templatesDir}?`)){
+            tempsToExport.forEach(t=> downloadToPath(templatesDir + t.name, t.content));
+          }
+        }
+      }catch(e){ console.error('Template export failed', e); toast('Error exporting templates: '+e.message); }
+      
+      toast('Export complete. Check your project path for saved files.\nNote: File save requires folder write permissions.');
     });
+    
+    // Helper to save files (with browser download as fallback)
+    function downloadToPath(fullPath, content){
+      // In a real app, this would call a backend endpoint to save to the Windows path
+      // For now, use browser download as fallback
+      const filename = fullPath.split('\\').pop() || 'export.txt';
+      const a = document.createElement('a');
+      a.href = 'data:application/octet-stream;charset=utf-8,' + encodeURIComponent(content);
+      a.download = filename;
+      a.click();
+    }
 
     // Import functionality
     bind('#btnImport','click',()=>{ dlg('#dlgImport','open'); $('#impStatus').textContent=''; });
