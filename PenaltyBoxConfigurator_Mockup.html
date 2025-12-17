@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Penalty Box Configurator – Interactive Mockup (v11.3.0 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
+<title>Penalty Box Configurator – Interactive Mockup (v11.3.5 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
 <style>
   :root { --bg:#0f1115; --panel:#171a21; --panel-2:#1f2430; --text:#e6e9ef; --muted:#a5adcb; --accent:#7aa2f7; --ok:#73daca; --warn:#e0af68; --err:#f7768e; --badge:#2b3245; --btn:#2d3344; --btn-h:#3b435a; --link:#86aaec; }
   *{box-sizing:border-box}
@@ -67,7 +67,7 @@
   <header>
     <div class="row" style="justify-content:space-between;">
       <div class="row" style="gap:10px; align-items:center;">
-        <h1>Penalty Box Configurator – <span class="muted">v11.3.0</span></h1>
+        <h1>Penalty Box Configurator – <span class="muted">v11.3.5</span></h1>
         <label style="display:flex; flex-direction:column;">
           <span class="muted">GV Orbit Server IP</span>
           <div class="row" style="gap:6px;align-items:center;">
@@ -249,7 +249,7 @@
     </div>
   </div>
 
-  <div class="footer">Penalty Box Configurator v11.3.0 - Minimum GV Orbit version: 3.6.0.</div>
+  <div class="footer">Penalty Box Configurator v11.3.5 - Minimum GV Orbit version: 3.6.0.</div>
 
   <!-- Connect modal -->
   <dialog id="dlgConnect">
@@ -424,6 +424,8 @@
     };
 
     const uid=()=>Math.random().toString(36).slice(2,9);
+    const makeMbyeId=(name)=> `EM::${String(name||'').trim()}`;
+    const ensureGroupId=(g)=>{ if(!g) return; g.id = makeMbyeId(g.name); };
     const escapeHtml=(str)=> (str||'').replace(/[&<>"']/g, s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[s]));
     const autoFavPath=(groupName, parts)=> ['Favourites', groupName, ...parts.filter(Boolean)];
     const toast=(msg)=> alert(msg);
@@ -813,7 +815,7 @@
         const nameHex = nameDec.replace(/%x/gi, i.toString(16).toUpperCase());
         const name=nameHex;
         if(state.groups.find(g=>g.name===name)) continue;
-        const src=state.sel; const dup=JSON.parse(JSON.stringify(src)); dup.id=uid(); dup.name=name; if(structureOnly){ dup.devices=[]; (function clearDevs(sgs){ (sgs||[]).forEach(s=>{ s.devices=[]; clearDevs(s.subGroups); }); })(dup.subGroups);} state.groups.push(dup); created.push(dup.id);
+        const src=state.sel; const dup=JSON.parse(JSON.stringify(src)); dup.name=name; dup.id=makeMbyeId(name); if(structureOnly){ dup.devices=[]; (function clearDevs(sgs){ (sgs||[]).forEach(s=>{ s.devices=[]; clearDevs(s.subGroups); }); })(dup.subGroups);} state.groups.push(dup); created.push(dup.id);
       }
       state.lastAction={type:'duplicate',ids:created}; renderGroups(); dlg('#dlgDuplicate','close'); });
 
@@ -889,6 +891,7 @@
     bind('#btnSaveGroup','click',()=>{
       if(!state.sel) return;
       state.sel.name=$('#groupName').value.trim();
+      ensureGroupId(state.sel);
       state.sel.inError=Number($('#inErrorState').value||50);
       state.sel.errorPositions=Number($('#errorPositions').value||2);
       state.sel.sorts={ p:$('#primarySort').value, s:$('#secondarySort').value, t:$('#tertiarySort').value };
@@ -913,14 +916,14 @@
       renderGroups($('#searchGroups').value);
       openEditor(state.sel);
     });
-    bind('#groupName','input',()=>{ if(!state.sel) return; $('#groupIdentifier').textContent='EM::'+$('#groupName').value.trim(); state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderGroups($('#searchGroups').value); });
+    bind('#groupName','input',()=>{ if(!state.sel) return; const newName = $('#groupName').value.trim(); $('#groupIdentifier').textContent='EM::'+newName; state.sel.id = 'EM::' + newName; state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderGroups($('#searchGroups').value); });
     bind('#searchGroups','input',(e)=> renderGroups(e.target.value));
 
     // Toggle Global/Local settings and enable/disable local controls
     bind('#modeGlobal','change', ()=>{ if(!state.sel) return; state.sel.useGlobalSettings = true; setLocalControlsEnabled(false); $('#modeTip').textContent='(Global is default)'; });
     bind('#modeLocal','change', ()=>{ if(!state.sel) return; state.sel.useGlobalSettings = false; setLocalControlsEnabled(true); $('#modeTip').textContent='(Local overrides Global)'; });
 
-    function newGroup(name){ return { id:uid(), name, inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, devices:[], subGroups:[], useGlobalSettings:true, localSettings:{ orientation:'Vertical', cellSpacing:8, latching:true, itemSize:320, showAddr:true, showPrio:true, showTs:true } }; }
+    function newGroup(name){ const clean = String(name||'').trim(); return { id: makeMbyeId(clean), name: clean, inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, devices:[], subGroups:[], useGlobalSettings:true, localSettings:{ orientation:'Vertical', cellSpacing:8, latching:true, itemSize:320, showAddr:true, showPrio:true, showTs:true } }; }
 
     // Init + sample
     renderGroups();
@@ -931,6 +934,7 @@
         { id:uid(), name:'Channel 2', devices:[{address:'System/Exception Monitoring/Channel 2', alarmName:'STATE'}], inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, useGlobalSettings:true, localSettings:{orientation:'Vertical',cellSpacing:8,latching:true,itemSize:320,showAddr:true,showPrio:true,showTs:true}, subGroups:[ ]},
         { id:uid(), name:'Channel 3', devices:[{address:'F110:01:06', alarmName:null},{address:'System/Exception Monitoring/Channel 1', alarmName:'MSG'}], inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, useGlobalSettings:true, localSettings:{orientation:'Vertical',cellSpacing:8,latching:true,itemSize:320,showAddr:true,showPrio:true,showTs:true}, subGroups:[ ]}
       ];
+      (state.groups||[]).forEach(ensureGroupId);
       // mark sample data as saved (not dirty)
       (state.groups||[]).forEach(g=>{ g._dirty = false; g._isNew = false; });
       state.sel=state.groups[0]; renderGroups(); openEditor(state.sel);
@@ -938,8 +942,10 @@
 
     // Generate Bundle (local, no push)
     bind('#btnGenerate','click',()=>{
+      // Ensure favourites in the exported bundle always use the MbyE identifier as their id
+      (state.groups||[]).forEach(ensureGroupId);
       const bundle = {
-        version: '11.3.0',
+        version: '11.3.5',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         projectVars: state.projectVars,
@@ -981,7 +987,7 @@
       }
 
       const favouritesConfig = {
-        version: '11.3.0',
+        version: '11.3.5',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         folders: (state.groups||[]).map(groupToFolder)
