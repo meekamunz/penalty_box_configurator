@@ -170,7 +170,7 @@
           </div>
           <table class="table" id="subGroupTable">
             <thead>
-              <tr><th>Name</th><th>Alarm Path</th><th>Template</th><th>Devices/Alarms</th><th>Children</th><th></th></tr>
+              <tr><th>Name</th><th>Alarm Path</th><th>Template</th><th>Priority</th><th>Devices/Alarms</th><th>Children</th><th></th></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -535,12 +535,43 @@
       };
     }
 
-    function renderSubGroups(g){ const tbody=$('#subGroupTable tbody'); tbody.innerHTML=''; (g.subGroups||[]).forEach((sg,idx)=>{ const childCount=(sg.subGroups||[]).length; const fav=autoFavPath(g.name, sg.__path||[sg.name]).join('/'); const devCount=(sg.devices||[]).length; const tr=document.createElement('tr'); tr.innerHTML=`<td>${escapeHtml(sg.name||'')}</td><td>${escapeHtml(fav)}</td><td>${escapeHtml(sg.template||'')}</td><td>${devCount}</td><td>${childCount}</td>
-        <td><span class='link' data-idx='${idx}'>Edit</span> · <span class='link' data-del='${idx}'>Delete</span></td>`; tbody.appendChild(tr); });
-      tbody.onclick=(e)=>{
-        if(e.target.matches('[data-idx]')) editSubGroup(parseInt(e.target.getAttribute('data-idx')));
-        if(e.target.matches('[data-del]')){ const i=parseInt(e.target.getAttribute('data-del')); state.sel.subGroups.splice(i,1); state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false; renderSubGroups(state.sel); renderPreview(state.sel); renderGroups($('#searchGroups').value); }
-      }
+    function renderSubGroups(g) {
+      const tbody = $('#subGroupTable tbody');
+      tbody.innerHTML = '';
+      (g.subGroups || []).forEach((sg, idx) => {
+        const childCount = (sg.subGroups || []).length;
+        const fav = autoFavPath(g.name, sg.__path || [sg.name]).join('/');
+        const devCount = (sg.devices || []).length;
+        // Priority input (0-100)
+        if (typeof sg.priority !== 'number') sg.priority = 1;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(sg.name || '')}</td><td>${escapeHtml(fav)}</td><td>${escapeHtml(sg.template || '')}</td><td><input type='number' min='0' max='100' value='${sg.priority}' data-prio='${idx}' style='width:60px'/></td><td>${devCount}</td><td>${childCount}</td>
+          <td><span class='link' data-idx='${idx}'>Edit</span> · <span class='link' data-del='${idx}'>Delete</span></td>`;
+        tbody.appendChild(tr);
+      });
+      tbody.onclick = (e) => {
+        if (e.target.matches('[data-idx]')) editSubGroup(parseInt(e.target.getAttribute('data-idx')));
+        if (e.target.matches('[data-del]')) {
+          const i = parseInt(e.target.getAttribute('data-del'));
+          state.sel.subGroups.splice(i, 1);
+          state.sel._dirty = true;
+          state.sel._isNew = state.sel._isNew || false;
+          renderSubGroups(state.sel);
+          renderPreview(state.sel);
+          renderGroups($('#searchGroups').value);
+        }
+      };
+      tbody.oninput = (e) => {
+        if (e.target && e.target.matches("input[type='number'][data-prio]")) {
+          const idx = parseInt(e.target.getAttribute('data-prio'));
+          let val = parseInt(e.target.value, 10);
+          if (isNaN(val)) val = 0;
+          if (val < 0) val = 0;
+          if (val > 100) val = 100;
+          state.sel.subGroups[idx].priority = val;
+          state.sel._dirty = true;
+        }
+      };
     }
 
     function editSubGroup(idx){ state.editingCtx={ parentArray: state.sel.subGroups, index: idx, node: JSON.parse(JSON.stringify(state.sel.subGroups[idx])) }; if(!state.editingCtx.node.__path) state.editingCtx.node.__path=[state.editingCtx.node.name]; openSubGroupDialog(); }
