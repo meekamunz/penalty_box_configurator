@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Penalty Box Configurator – Interactive Mockup (v11.4.0 – .globalx exception monitors, sorts per-favourite, local+remote templates)</title>
+<title>Penalty Box Configurator – Interactive Mockup (v11.4.1 – File naming consistency, .globalx exception monitors, sorts per-favourite)</title>
 <style>
   :root { --bg:#0f1115; --panel:#171a21; --panel-2:#1f2430; --text:#e6e9ef; --muted:#a5adcb; --accent:#7aa2f7; --ok:#73daca; --warn:#e0af68; --err:#f7768e; --badge:#2b3245; --btn:#2d3344; --btn-h:#3b435a; --link:#86aaec; }
   *{box-sizing:border-box}
@@ -67,7 +67,7 @@
   <header>
     <div class="row" style="justify-content:space-between;">
       <div class="row" style="gap:10px; align-items:center;">
-        <h1>Penalty Box Configurator – <span class="muted">v11.4.0</span></h1>
+        <h1>Penalty Box Configurator – <span class="muted">v11.4.1</span></h1>
         <label style="display:flex; flex-direction:column;">
           <span class="muted">GV Orbit Server IP</span>
           <div class="row" style="gap:6px;align-items:center;">
@@ -84,8 +84,13 @@
         <button id="btnUndo">Undo Duplication</button>
         <button id="btnTemplateBrowser">Templates...</button>
         <button id="btnGenerate" class="btn-primary">Generate Bundle</button>
+        <button id="btnImport" class="btn-primary">Import…</button>
         <button id="btnLoadSample">Load Sample</button>
       </div>
+      
+      <!-- Hidden file inputs for import -->
+      <input type="file" id="importBundleFile" style="display:none;" accept=".json" />
+      <input type="file" id="importTemplateFile" style="display:none;" accept=".tmpl" multiple />
     </div>
   </header>
 
@@ -253,7 +258,7 @@
     </div>
   </div>
 
-  <div class="footer">Penalty Box Configurator v11.4.0 - Minimum GV Orbit version: 3.6.0.</div>
+  <div class="footer">Penalty Box Configurator v11.4.1 - Minimum GV Orbit version: 3.6.0.</div>
 
   <!-- Connect modal -->
   <dialog id="dlgConnect">
@@ -406,6 +411,24 @@
       <div class="code" id="tbView">No template selected. Toggle Local/Remote to view all available templates. Browser fetch requires HTTP(S) and CORS; SSH (port 2222) cannot be used directly.</div>
     </div>
     <div class="actions"><button id="tbClose">Close</button></div>
+  </dialog>
+
+  <!-- Import dialog -->
+  <dialog id="dlgImport">
+    <header><strong>Import Configuration</strong></header>
+    <div class="content stack">
+      <div class="muted small">Select file(s) to import. You can import:</div>
+      <ul style="margin:8px 0; padding-left:20px; color:var(--muted); font-size:12px;">
+        <li><strong>PenaltyBoxConfig.json</strong> - Full configuration (groups, master settings, templates)</li>
+        <li><strong>*.tmpl</strong> - Template files (one or multiple)</li>
+      </ul>
+      <div class="row" style="gap:8px; margin-top:8px;">
+        <button id="impBundleBtn" class="btn">Config…</button>
+        <button id="impTemplatesBtn" class="btn">Templates…</button>
+      </div>
+      <div id="impStatus" class="muted small" style="margin-top:8px;"></div>
+    </div>
+    <div class="actions"><button id="impClose">Close</button></div>
   </dialog>
 
 <script>
@@ -797,7 +820,7 @@
     // Build complete .globalx XML document
     function buildGlobalxXml(masterMbyE, favouriteMbyEs) {
       const allMbyEs = [masterMbyE, ...favouriteMbyEs].join('\n');
-      return `<?xml version="1.0" encoding="UTF-8"?>\n<!--This document was created by Penalty Box Configurator v11.4.0-->\n<schematic xmlns="http://www.snellgroup.com/controlandmonitoring/fusion/schematic/2.0" xmlns:p="http://www.snellgroup.com/controlandmonitoring/fusion/properties/2.0" xmlns:s="http://www.snellgroup.com/controlandmonitoring/fusion/styles/2.0">\n    <variables/>\n    <properties/>\n    <style/>\n    <behaviours>\n${allMbyEs}\n    </behaviours>\n    <bindings/>\n    <layout/>\n    <styles/>\n    <widgets/>\n</schematic>`;
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<!--This document was created by Penalty Box Configurator v11.4.1-->\n<schematic xmlns="http://www.snellgroup.com/controlandmonitoring/fusion/schematic/2.0" xmlns:p="http://www.snellgroup.com/controlandmonitoring/fusion/properties/2.0" xmlns:s="http://www.snellgroup.com/controlandmonitoring/fusion/styles/2.0">\n    <variables/>\n    <properties/>\n    <style/>\n    <behaviours>\n${allMbyEs}\n    </behaviours>\n    <bindings/>\n    <layout/>\n    <styles/>\n    <widgets/>\n</schematic>`;
     }
     
     function validateGroup(g){ if(!g.name) return {ok:false,msg:'Name required'}; if(state.groups.filter(x=>x!==g && x.name===g.name).length) return {ok:false,msg:'Name must be unique'}; let devices=(g.devices||[]).length; (function count(sgs){(sgs||[]).forEach(s=>{devices+=(s.devices||[]).length; count(s.subGroups);});})(g.subGroups); if(devices===0) return {ok:false,msg:'Add devices or alarms at group or sub-group level'}; return {ok:true,msg:'Complete'}; }
@@ -1104,7 +1127,7 @@
       // Ensure favourites in the exported bundle always use the MbyE identifier as their id
       (state.groups||[]).forEach(ensureGroupId);
       const bundle = {
-        version: '11.4.0',
+        version: '11.4.1',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         projectVars: state.projectVars,
@@ -1113,7 +1136,7 @@
         templates: { local: state.templates, project: state.projectTemplates.map(t=>({ name:t.name, headers:t.headers })) }
       };
       // download full bundle
-      download('PenaltyBoxBundle.json', JSON.stringify(bundle, null, 2));
+      download('PenaltyBoxConfig.json', JSON.stringify(bundle, null, 2));
 
       // produce a favourites-only config that conforms to the favourites schema
       function deviceToNetworkItem(d) {
@@ -1146,13 +1169,13 @@
       }
 
       const favouritesConfig = {
-        version: '11.4.0',
+        version: '11.4.1',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         folders: (state.groups||[]).map(groupToFolder)
       };
 
-      download('penaltyBoxFavourites.json', JSON.stringify(favouritesConfig, null, 2));
+      download('PenaltyBoxFavourites.json', JSON.stringify(favouritesConfig, null, 2));
       
       // Generate .globalx file with exception monitors
       try {
@@ -1228,6 +1251,81 @@
         });
       }catch(e){ console.error('Template export failed', e); }
       toast('Bundle, favourites config and template files generated locally – no push performed');
+    });
+
+    // Import functionality
+    bind('#btnImport','click',()=>{ dlg('#dlgImport','open'); $('#impStatus').textContent=''; });
+    bind('#impClose','click',()=>{ dlg('#dlgImport','close'); });
+
+    function setImpStatus(msg, isError) {
+      const el = $('#impStatus');
+      if(el) {
+        el.textContent = msg;
+        el.style.color = isError ? 'var(--err)' : 'var(--ok)';
+      }
+    }
+
+    // Import Bundle
+    bind('#impBundleBtn','click',()=>{ $('#importBundleFile').click(); });
+    bind('#importBundleFile','change',function(e) {
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const bundle = JSON.parse(evt.target.result);
+          if(!bundle.version || !bundle.favourites) throw new Error('Invalid bundle format');
+          if(bundle.projectVars) state.projectVars = bundle.projectVars;
+          if(bundle.master) state.master = bundle.master;
+          state.groups = bundle.favourites || [];
+          (state.groups||[]).forEach(ensureGroupId);
+          if(bundle.templates) {
+            if(bundle.templates.local) state.templates = bundle.templates.local;
+            if(bundle.templates.project) state.projectTemplates = bundle.templates.project;
+          }
+          state.sel = state.groups[0] || null;
+          renderGroups();
+          if(state.sel) openEditor(state.sel);
+          setImpStatus(`Bundle imported: ${state.groups.length} group(s)`);
+        } catch(err) {
+          setImpStatus('Error: ' + err.message, true);
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    });
+
+    // Import Favourites
+    bind('#impTemplatesBtn','click',()=>{ $('#importTemplateFile').click(); });
+    bind('#importTemplateFile','change',function(e) {
+      const files = e.target.files;
+      if(files.length === 0) return;
+      let imported = 0;
+      for(let file of files) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const content = evt.target.result;
+            const name = file.name;
+            const headers = content.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'));
+            const existing = state.templates.findIndex(t => t.name === name);
+            const tpl = { name, headers, _userCreated: true };
+            if(existing >= 0) {
+              state.templates[existing] = tpl;
+            } else {
+              state.templates.push(tpl);
+            }
+            imported++;
+            if(imported === files.length) {
+              setImpStatus(`Templates imported: ${imported} file(s)`);
+            }
+          } catch(err) {
+            setImpStatus('Error reading template: ' + err.message, true);
+          }
+        };
+        reader.readAsText(file);
+      }
+      e.target.value = '';
     });
   });
 </script>
