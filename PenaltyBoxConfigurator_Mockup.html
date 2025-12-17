@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Penalty Box Configurator – Interactive Mockup (v11.3.5 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
+<title>Penalty Box Configurator – Interactive Mockup (v11.3.8 – Aggregated alarms, Connect modal, Templates... local+remote, nested sub-groups)</title>
 <style>
   :root { --bg:#0f1115; --panel:#171a21; --panel-2:#1f2430; --text:#e6e9ef; --muted:#a5adcb; --accent:#7aa2f7; --ok:#73daca; --warn:#e0af68; --err:#f7768e; --badge:#2b3245; --btn:#2d3344; --btn-h:#3b435a; --link:#86aaec; }
   *{box-sizing:border-box}
@@ -67,7 +67,7 @@
   <header>
     <div class="row" style="justify-content:space-between;">
       <div class="row" style="gap:10px; align-items:center;">
-        <h1>Penalty Box Configurator – <span class="muted">v11.3.5</span></h1>
+        <h1>Penalty Box Configurator – <span class="muted">v11.3.8</span></h1>
         <label style="display:flex; flex-direction:column;">
           <span class="muted">GV Orbit Server IP</span>
           <div class="row" style="gap:6px;align-items:center;">
@@ -134,14 +134,6 @@
                 <input id="errorPositions" type="number" min="1" max="50" value="2" />
               </div>
             </div>
-            <div style="margin-top:8px">
-              <label>Sorting</label>
-              <div class="row">
-                <select id="primarySort"><option>Priority</option><option>State</option><option>Date (Newest First)</option><option>Address</option></select>
-                <select id="secondarySort"><option>State</option><option>Priority</option><option>Date (Newest First)</option><option>Address</option></select>
-                <select id="tertiarySort"><option>Date (Newest First)</option><option>Priority</option><option>State</option><option>Address</option></select>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -205,6 +197,12 @@
                 <div class="row"><input id="lvShowPrio" type="checkbox" checked/><label for="lvShowPrio">Show Priority</label></div>
                 <div>Show Timestamp</div>
                 <div class="row"><input id="lvShowTs" type="checkbox" checked/><label for="lvShowTs">Show Timestamp</label></div>
+                <div>Primary Sort</div>
+                <select id="lvPrimarySort"><option>State</option><option>Date (Newest First)</option><option>Date (Oldest First)</option><option>Priority</option><option>Address</option></select>
+                <div>Secondary Sort</div>
+                <select id="lvSecondarySort"><option>Date (Newest First)</option><option>Date (Oldest First)</option><option>State</option><option>Priority</option><option>Address</option></select>
+                <div>Tertiary Sort</div>
+                <select id="lvTertiarySort"><option>Priority</option><option>Date (Newest First)</option><option>Date (Oldest First)</option><option>State</option><option>Address</option></select>
               </div>
             </div>
             <div class="stack">
@@ -238,6 +236,12 @@
         <input id="g_pvShowPrio" type="checkbox" checked />
         <div>Show Timestamp</div>
         <input id="g_pvShowTs" type="checkbox" checked />
+        <div>Primary Sort</div>
+        <select id="g_primarySort"><option>State</option><option>Date (Newest First)</option><option>Date (Oldest First)</option><option>Priority</option><option>Address</option></select>
+        <div>Secondary Sort</div>
+        <select id="g_secondarySort"><option>Date (Newest First)</option><option>Date (Oldest First)</option><option>State</option><option>Priority</option><option>Address</option></select>
+        <div>Tertiary Sort</div>
+        <select id="g_tertiarySort"><option>Priority</option><option>Date (Newest First)</option><option>Date (Oldest First)</option><option>State</option><option>Address</option></select>
         <div>Master Penalty Box Slots</div>
         <input id="g_masterSlots" type="number" min="1" max="100" value="10" />
       </div>
@@ -249,7 +253,7 @@
     </div>
   </div>
 
-  <div class="footer">Penalty Box Configurator v11.3.5 - Minimum GV Orbit version: 3.6.0.</div>
+  <div class="footer">Penalty Box Configurator v11.3.8 - Minimum GV Orbit version: 3.6.0.</div>
 
   <!-- Connect modal -->
   <dialog id="dlgConnect">
@@ -416,7 +420,7 @@
       connected:false,
       groups:[], sel:null, lastAction:null,
       projectVars:{ orientation:'Vertical', cellSpacing:8, latching:true, itemSize:320, showAddr:true, showPrio:true, showTs:true },
-      master:{ id:'EM::Penalty Box', inError:50, errorPositions:10, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'} },
+      master:{ id:'EM::Penalty Box', inError:50, errorPositions:10, sorts:{p:'State',s:'Date (Newest First)',t:'Priority'} },
       templates:[{ name:'example.tmpl', headers:['MSG','STATUS','STATE','UPTIME'] }],
       projectTemplates:[], editingCtx:null,
       _devices:[], selectedDevices:[], agg:{byName:new Map(), flat:[]},
@@ -426,6 +430,7 @@
     const uid=()=>Math.random().toString(36).slice(2,9);
     const makeMbyeId=(name)=> `EM::${String(name||'').trim()}`;
     const ensureGroupId=(g)=>{ if(!g) return; g.id = makeMbyeId(g.name); };
+    const defaultSorts=()=> ({ p:'State', s:'Date (Newest First)', t:'Priority' });
     const escapeHtml=(str)=> (str||'').replace(/[&<>"']/g, s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[s]));
     const autoFavPath=(groupName, parts)=> ['Favourites', groupName, ...parts.filter(Boolean)];
     const toast=(msg)=> alert(msg);
@@ -491,13 +496,23 @@
       $('#grpTemplate').value = g.template || '';
       const useGlobal=(g.useGlobalSettings!==false); $('#modeGlobal').checked=useGlobal; $('#modeLocal').checked=!useGlobal; setLocalControlsEnabled(!useGlobal);
       $('#modeTip').textContent = useGlobal? '(Global is default)' : '(Local overrides Global)';
-      $('#inErrorState').value=String(g.inError??50); $('#errorPositions').value=g.errorPositions??2; $('#primarySort').value=g.sorts?.p??'Priority'; $('#secondarySort').value=g.sorts?.s??'State'; $('#tertiarySort').value=g.sorts?.t??'Date (Newest First)';
+      $('#inErrorState').value=String(g.inError??50); $('#errorPositions').value=g.errorPositions??2;
+      // Sorting supports Global (default) and Local overrides
+      if(!state.master.sorts) state.master.sorts = defaultSorts();
+      if(!g.sorts) g.sorts = defaultSorts();
+      // Local sort controls
+      $('#lvPrimarySort').value = g.sorts.p;
+      $('#lvSecondarySort').value = g.sorts.s;
+      $('#lvTertiarySort').value = g.sorts.t;
+      setLocalSortControlsEnabled(!useGlobal);
       const src = useGlobal ? state.projectVars : (g.localSettings || state.projectVars);
       $('#lvOrientation').value=src.orientation; $('#lvCellSpacing').value=src.cellSpacing; $('#lvLatching').checked=src.latching; $('#lvItemSize').value=src.itemSize; $('#lvShowAddr').checked=src.showAddr; $('#lvShowPrio').checked=src.showPrio; $('#lvShowTs').checked=src.showTs;
       renderGroupDevices(g); renderSubGroups(g); renderPreview(g); const sg=$('#statusGroup'); if(sg) sg.textContent=validateGroup(g).msg;
     }
 
     function setLocalControlsEnabled(enabled){ ['lvOrientation','lvCellSpacing','lvLatching','lvItemSize','lvShowAddr','lvShowPrio','lvShowTs'].forEach(id=>{ const el=$('#'+id); if(el){ el.disabled=!enabled; const box=el.closest('div'); if(box) box.style.opacity = enabled? '1':'0.6'; }}); }
+
+    function setLocalSortControlsEnabled(enabled){ ['lvPrimarySort','lvSecondarySort','lvTertiarySort'].forEach(id=>{ const el=$('#'+id); if(el){ el.disabled=!enabled; el.style.opacity = enabled? '1':'0.6'; }}); }
 
     async function renderGroupDevices(g){
       const tbody = $('#grpDevTable tbody');
@@ -694,7 +709,22 @@
     // Update alarm path live when editing sub-group name
     bind('#sgName','input', ()=> updateFavPathField());
 
-    function renderPreview(g){ const pre=$('#previewCode'); if(!pre) return; const lines=[]; lines.push(`Identifier: EM::${g.name}`); lines.push(`In Error State: ${g.inError}`); lines.push(`Error Positions (N): ${g.errorPositions}`); lines.push(`Sort: ${g.sorts.p} / ${g.sorts.s} / ${g.sorts.t}`); lines.push(`Settings: ${g.useGlobalSettings!==false ? 'Global' : 'Local'}`); let itemCount=(g.devices||[]).length; (function count(sgs){ (sgs||[]).forEach(s=>{ itemCount+=(s.devices||[]).length; count(s.subGroups); }); })(g.subGroups); lines.push(`Resolved Items: ${itemCount}`); pre.textContent=lines.join('\n'); }
+    function renderPreview(g){
+      const pre=$('#previewCode'); if(!pre) return;
+      const lines=[];
+      lines.push(`Identifier: EM::${g.name}`);
+      lines.push(`In Error State: ${g.inError}`);
+      lines.push(`Error Positions (N): ${g.errorPositions}`);
+      if(!state.master.sorts) state.master.sorts = defaultSorts();
+      if(!g.sorts) g.sorts = defaultSorts();
+      const sorts = (g.useGlobalSettings!==false) ? state.master.sorts : g.sorts;
+      lines.push(`Sort: ${sorts.p} / ${sorts.s} / ${sorts.t}`);
+      lines.push(`Settings: ${g.useGlobalSettings!==false ? 'Global' : 'Local'}`);
+      let itemCount=(g.devices||[]).length;
+      (function count(sgs){ (sgs||[]).forEach(s=>{ itemCount+=(s.devices||[]).length; count(s.subGroups); }); })(g.subGroups);
+      lines.push(`Resolved Items: ${itemCount}`);
+      pre.textContent=lines.join('\n');
+    }
 
     function validateGroup(g){ if(!g.name) return {ok:false,msg:'Name required'}; if(state.groups.filter(x=>x!==g && x.name===g.name).length) return {ok:false,msg:'Name must be unique'}; let devices=(g.devices||[]).length; (function count(sgs){(sgs||[]).forEach(s=>{devices+=(s.devices||[]).length; count(s.subGroups);});})(g.subGroups); if(devices===0) return {ok:false,msg:'Add devices or alarms at group or sub-group level'}; return {ok:true,msg:'Complete'}; }
 
@@ -894,9 +924,13 @@
       ensureGroupId(state.sel);
       state.sel.inError=Number($('#inErrorState').value||50);
       state.sel.errorPositions=Number($('#errorPositions').value||2);
-      state.sel.sorts={ p:$('#primarySort').value, s:$('#secondarySort').value, t:$('#tertiarySort').value };
-      // persist global/local selection and local settings when applicable
+      // Only persist per-favourite sorts when Local Settings are selected.
+      // When Global Settings are selected, sorts are driven by state.master.sorts.
       const useGlobal = $('#modeGlobal').checked;
+      if(!useGlobal){
+        state.sel.sorts={ p:$('#lvPrimarySort').value, s:$('#lvSecondarySort').value, t:$('#lvTertiarySort').value };
+      }
+      // persist global/local selection and local settings when applicable
       state.sel.useGlobalSettings = useGlobal;
       if(!useGlobal){
         state.sel.localSettings = {
@@ -920,10 +954,61 @@
     bind('#searchGroups','input',(e)=> renderGroups(e.target.value));
 
     // Toggle Global/Local settings and enable/disable local controls
-    bind('#modeGlobal','change', ()=>{ if(!state.sel) return; state.sel.useGlobalSettings = true; setLocalControlsEnabled(false); $('#modeTip').textContent='(Global is default)'; });
-    bind('#modeLocal','change', ()=>{ if(!state.sel) return; state.sel.useGlobalSettings = false; setLocalControlsEnabled(true); $('#modeTip').textContent='(Local overrides Global)'; });
+    bind('#modeGlobal','change', ()=>{
+      if(!state.sel) return;
+      state.sel.useGlobalSettings = true;
+      setLocalControlsEnabled(false);
+      setLocalSortControlsEnabled(false);
+      if(!state.master.sorts) state.master.sorts = defaultSorts();
+      $('#modeTip').textContent='(Global is default)';
+      renderPreview(state.sel);
+    });
+    bind('#modeLocal','change', ()=>{
+      if(!state.sel) return;
+      state.sel.useGlobalSettings = false;
+      setLocalControlsEnabled(true);
+      setLocalSortControlsEnabled(true);
+      if(!state.sel.sorts) state.sel.sorts = defaultSorts();
+      // show local settings and update resolved display
+      $('#lvPrimarySort').value = state.sel.sorts.p;
+      $('#lvSecondarySort').value = state.sel.sorts.s;
+      $('#lvTertiarySort').value = state.sel.sorts.t;
+      $('#modeTip').textContent='(Local overrides Global)';
+      renderPreview(state.sel);
+    });
 
-    function newGroup(name){ const clean = String(name||'').trim(); return { id: makeMbyeId(clean), name: clean, inError:50, errorPositions:2, sorts:{p:'Priority',s:'State',t:'Date (Newest First)'}, devices:[], subGroups:[], useGlobalSettings:true, localSettings:{ orientation:'Vertical', cellSpacing:8, latching:true, itemSize:320, showAddr:true, showPrio:true, showTs:true } }; }
+    // Local (per-favourite) sort changes apply immediately when in Local mode
+    const onLocalSortChange = ()=>{
+      if(!state.sel) return;
+      if(state.sel.useGlobalSettings !== false) return; // only editable in Local mode
+      if(!state.sel.sorts) state.sel.sorts = defaultSorts();
+      state.sel.sorts.p = $('#lvPrimarySort').value;
+      state.sel.sorts.s = $('#lvSecondarySort').value;
+      state.sel.sorts.t = $('#lvTertiarySort').value;
+      state.sel._dirty = true;
+      state.sel._isNew = state.sel._isNew || false;
+      renderPreview(state.sel);
+      renderGroups($('#searchGroups').value);
+    };
+    bind('#lvPrimarySort','change', onLocalSortChange);
+    bind('#lvSecondarySort','change', onLocalSortChange);
+    bind('#lvTertiarySort','change', onLocalSortChange);
+
+    // Global sort settings
+    (function initGlobalSortUi(){
+      try{
+        if(!state.master.sorts) state.master.sorts = defaultSorts();
+        const gp=$('#g_primarySort'), gs=$('#g_secondarySort'), gt=$('#g_tertiarySort');
+        if(gp) gp.value = state.master.sorts.p;
+        if(gs) gs.value = state.master.sorts.s;
+        if(gt) gt.value = state.master.sorts.t;
+      }catch(e){}
+    })();
+    bind('#g_primarySort','change', ()=>{ state.master.sorts.p = $('#g_primarySort').value; if(state.sel && state.sel.useGlobalSettings!==false){ renderPreview(state.sel); } });
+    bind('#g_secondarySort','change', ()=>{ state.master.sorts.s = $('#g_secondarySort').value; if(state.sel && state.sel.useGlobalSettings!==false){ renderPreview(state.sel); } });
+    bind('#g_tertiarySort','change', ()=>{ state.master.sorts.t = $('#g_tertiarySort').value; if(state.sel && state.sel.useGlobalSettings!==false){ renderPreview(state.sel); } });
+
+    function newGroup(name){ const clean = String(name||'').trim(); return { id: makeMbyeId(clean), name: clean, inError:50, errorPositions:2, sorts: defaultSorts(), devices:[], subGroups:[], useGlobalSettings:true, localSettings:{ orientation:'Vertical', cellSpacing:8, latching:true, itemSize:320, showAddr:true, showPrio:true, showTs:true } }; }
 
     // Init + sample
     renderGroups();
@@ -945,7 +1030,7 @@
       // Ensure favourites in the exported bundle always use the MbyE identifier as their id
       (state.groups||[]).forEach(ensureGroupId);
       const bundle = {
-        version: '11.3.5',
+        version: '11.3.8',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         projectVars: state.projectVars,
@@ -987,7 +1072,7 @@
       }
 
       const favouritesConfig = {
-        version: '11.3.5',
+        version: '11.3.8',
         createdAt: new Date().toISOString(),
         serverIp: ($('#cfgIp').value||'').trim(),
         folders: (state.groups||[]).map(groupToFolder)
