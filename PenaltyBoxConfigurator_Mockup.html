@@ -1140,44 +1140,88 @@
       loadProjectTemplates();
     });
     
-    bind('#tbImportProjectTemplates','click',()=>{ 
+    bind('#tbImportProjectTemplates','click', async ()=>{ 
       if(!state.projectPath){
         toast('Please set a project path first.');
         dlg('#dlgProjectPath','open');
         return;
       }
       
-      // Mock implementation: Simulate reading from disk without user interaction
       const btn = $('#tbImportProjectTemplates');
       const originalText = btn.textContent;
-      btn.textContent = 'Scanning...';
+      btn.textContent = 'Importing...';
       btn.disabled = true;
       $('#ppStatus').textContent = `Scanning ${state.projectPath}\\resources\\templates\\...`;
 
-      setTimeout(() => {
-        // Simulate finding files (Mocking the user's specific directory content)
-        const mockFiles = [
-          { name: 'FEC.tmpl', headers: ['STREAM', 'BER', 'PCR_JITTER', 'LOCK'] },
-          { name: 'health.tmpl', headers: ['CPU', 'RAM', 'TEMP', 'PSU_STATUS'] }
-        ];
+      try {
+        // Convert Windows path to file URL for local access
+        // Note: This requires the browser to be run with flags allowing local file access (e.g. --allow-file-access-from-files)
+        // or to be running in an environment that supports it.
+        let path = state.projectPath.replace(/\\/g, '/');
+        if(!path.startsWith('/')) path = '/' + path; 
+        const baseUrl = 'file://' + path + '/resources/templates/';
 
-        let count = 0;
-        mockFiles.forEach(f => {
-          if(!state.templates.find(t => t.name === f.name)){
-            state.templates.push({ ...f, _userCreated: false, _imported: true });
-            count++;
-          }
-        });
+        let filesFound = [];
+
+        // Attempt 1: Try to list directory (works in some browsers/configs)
+        try {
+            const res = await fetch(baseUrl);
+            if(res.ok) {
+                const text = await res.text();
+                // Parse directory listing HTML for .tmpl links
+                const regex = /href=["']([^"']+\.tmpl)["']/gi;
+                let match;
+                while ((match = regex.exec(text)) !== null) {
+                    // Decode URI component in case of spaces
+                    filesFound.push(decodeURIComponent(match[1]));
+                }
+            }
+        } catch(e) {
+            console.warn('Directory listing failed or blocked, falling back to known files', e);
+        }
+
+        // Attempt 2: If directory listing failed/empty, try specific files known to exist in the project
+        // This is a "best effort" if directory listing is blocked but direct file access is allowed.
+        if(filesFound.length === 0) {
+            filesFound = ['FEC.tmpl', 'health.tmpl', 'example.tmpl'];
+        }
+
+        let importedCount = 0;
+        for(const fileName of filesFound) {
+            try {
+                const name = fileName.split('/').pop(); 
+                const fileUrl = baseUrl + name;
+                const res = await fetch(fileUrl);
+                if(res.ok) {
+                    const content = await res.text();
+                    // Parse template: non-empty lines, ignore comments #
+                    const headers = content.split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'));
+                    
+                    const existing = state.templates.findIndex(t => t.name === name);
+                    const tpl = { name, headers, _userCreated: false, _imported: true };
+                    
+                    if(existing >= 0) state.templates[existing] = tpl;
+                    else state.templates.push(tpl);
+                    
+                    importedCount++;
+                }
+            } catch(e) {
+                console.warn('Failed to fetch ' + fileName, e);
+            }
+        }
 
         renderTemplateBrowser();
-        btn.textContent = originalText;
-        btn.disabled = false;
         $('#ppStatus').textContent = `Project path: ${state.projectPath}\\resources\\templates\\`;
         
-        if(count > 0) toast(`Successfully imported ${count} templates from project path.`);
-        else toast('No new templates found in project path.');
+        if(importedCount > 0) toast(`Successfully imported ${importedCount} templates.`);
+        else toast('No templates found or access denied. Ensure browser allows local file access.');
 
-      }, 1000);
+      } catch (err) {
+        toast('Import failed: ' + err.message);
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
     });
     bind('#tbRefresh','click', loadProjectTemplates);
     bind('#tbClose','click',()=>{ dlg('#dlgTemplateBrowser','close'); if(state._returnToPicker){ state._returnToPicker=false; try{ renderPickTemplateList(); }catch(e){} dlg('#dlgPickTemplate','open'); } });
