@@ -387,6 +387,7 @@
         </div>
       </div>
       <div class="row small" style="justify-content:flex-end; gap:8px;">
+        <button id="apClearSelection">Clear Selection</button>
         <button id="apReloadDevices">Reload Devices</button>
       </div>
     </div>
@@ -892,6 +893,7 @@
         const div = document.createElement('div');
         div.className = 'itm';
         div.dataset.index = String(idx);
+        div.dataset.address = String(d);
         div.innerHTML = `${escapeHtml(d)} <span class="muted small">(loading...)</span>`;
         box.appendChild(div);
       });
@@ -948,6 +950,14 @@
     }
     bind('#apFilterDevice','input', renderDeviceList);
     bind('#apReloadDevices','click', async()=>{ try{ const devices = await apiGet('/devices'); state._devices = Array.isArray(devices)? devices : []; renderDeviceList(); }catch(e){ toast('Reload devices failed: '+e.message); } });
+    bind('#apClearSelection','click', ()=>{
+      state.selectedDevices = [];
+      state.agg = {byName:new Map(), flat:[]};
+      state._apLastDeviceIndex = null;
+      state._apLastAlarmIndex = null;
+      $$('#apDeviceList .itm.sel').forEach(n=> n.classList.remove('sel'));
+      renderAlarmList();
+    });
 
     async function aggregateAlarmsForSelectedDevices(){ const qAlarm=($('#apFilterAlarm').value||'').toLowerCase(); state.agg={byName:new Map(), flat:[]};
       const promises = state.selectedDevices.map(async path=>{ try{ const enc='?path='+encodeURIComponent(path); const alarms = await apiGet('/alarms'+enc); (Array.isArray(alarms)? alarms:[]).forEach(a=>{
@@ -1001,20 +1011,40 @@
       const selDevs = $$('#apDeviceList .itm.sel');
       const chosenAlarms = $$('#apAlarmList .itm.sel');
       if(apCtx?.target==='template'){
-        if(chosenAlarms.length){ chosenAlarms.forEach(el=>{ const name=el.dataset.name||el.querySelector('strong').textContent||''; addCtHeader(name, (state.agg.byName.get(name)?.[0]?.path)||''); }); }
-        else if(selDevs.length){ selDevs.forEach(el=>{ const path=el.textContent.replace(/\s*fav\s*$/,''); const seg = (String(path).split('/').pop()||path); addCtHeader(seg, path); }); }
-        renderCtHeaders(); dlg('#dlgAlarmPicker','close'); return;
+        if(chosenAlarms.length){ 
+          chosenAlarms.forEach(el=>{ const name=el.dataset.name||el.querySelector('strong').textContent||''; addCtHeader(name, (state.agg.byName.get(name)?.[0]?.path)||''); }); 
+          renderCtHeaders(); dlg('#dlgAlarmPicker','close'); 
+        } else {
+          toast('Please select alarms (headers) for the template. Devices cannot be added directly.');
+        }
+        return;
       }
       if(!state.sel) { dlg('#dlgAlarmPicker','close'); return; }
       if(apCtx?.target==='group'){
-        if(chosenAlarms.length){ chosenAlarms.forEach(el=>{ const name=el.dataset.name||el.querySelector('strong').textContent; const bucket = state.agg.byName.get(name)||[]; bucket.forEach(rec=>{ if(!state.sel.devices) state.sel.devices=[]; state.sel.devices.push({address:rec.path, alarmName:name}); }); }); }
-        else if(selDevs.length){ selDevs.forEach(el=>{ const path=el.textContent.replace(/\s*fav\s*$/,''); if(!state.sel.devices) state.sel.devices=[]; state.sel.devices.push({address:path}); }); }
+        if(chosenAlarms.length){ 
+          chosenAlarms.forEach(el=>{ const name=el.dataset.name||el.querySelector('strong').textContent; const bucket = state.agg.byName.get(name)||[]; bucket.forEach(rec=>{ if(!state.sel.devices) state.sel.devices=[]; state.sel.devices.push({address:rec.path, alarmName:name}); }); }); 
+        } else if(selDevs.length){ 
+          // If no alarms selected but devices are, add devices without alarm name
+          selDevs.forEach(el=>{ 
+            const path = el.dataset.address || el.textContent.replace(/\s*fav\s*$/,'').trim(); 
+            if(!state.sel.devices) state.sel.devices=[]; 
+            state.sel.devices.push({address:path, alarmName:null}); 
+          }); 
+        }
         state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false;
         renderGroupDevices(state.sel); renderPreview(state.sel); renderGroups($('#searchGroups').value);
       } else if(apCtx?.target==='subgroup'){
         const node = state.editingCtx?.node; if(!node) { dlg('#dlgAlarmPicker','close'); return; }
-        if(chosenAlarms.length){ chosenAlarms.forEach(el=>{ const name=el.dataset.name||el.querySelector('strong').textContent; const bucket = state.agg.byName.get(name)||[]; bucket.forEach(rec=>{ if(!node.devices) node.devices=[]; node.devices.push({address:rec.path, alarmName:name}); }); }); }
-        else if(selDevs.length){ selDevs.forEach(el=>{ const path=el.textContent.replace(/\s*fav\s*$/,''); if(!node.devices) node.devices=[]; node.devices.push({address:path}); }); }
+        if(chosenAlarms.length){ 
+          chosenAlarms.forEach(el=>{ const name=el.dataset.name||el.querySelector('strong').textContent; const bucket = state.agg.byName.get(name)||[]; bucket.forEach(rec=>{ if(!node.devices) node.devices=[]; node.devices.push({address:rec.path, alarmName:name}); }); }); 
+        } else if(selDevs.length){ 
+          // If no alarms selected but devices are, add devices without alarm name
+          selDevs.forEach(el=>{ 
+            const path = el.dataset.address || el.textContent.replace(/\s*fav\s*$/,'').trim();
+            if(!node.devices) node.devices=[]; 
+            node.devices.push({address:path, alarmName:null}); 
+          }); 
+        }
         state.sel._dirty = true; state.sel._isNew = state.sel._isNew || false;
         renderSgDevs(); renderGroups($('#searchGroups').value);
       }
@@ -1340,31 +1370,8 @@
       state.sel=state.groups[0]; renderGroups(); openEditor(state.sel);
     });
 
-    // Generate Bundle (local, no push)
-    bind('#btnGenerate','click',()=>{
-      if(!state.projectPath){ toast('Please set a project path first using "Project Path..." button.'); return; }
-      
-      // Ensure favourites in the exported bundle always use the MbyE identifier as their id
-      (state.groups||[]).forEach(ensureGroupId);
-      const bundle = {
-        version: '11.4.1',
-        createdAt: new Date().toISOString(),
-        serverIp: ($('#cfgIp').value||'').trim(),
-        projectVars: state.projectVars,
-        master: state.master,
-        favourites: state.groups,
-        templates: { local: state.templates, project: state.projectTemplates.map(t=>({ name:t.name, headers:t.headers })) }
-      };
-      
-      // Save PenaltyBoxConfig.json
-      const configPath = state.projectPath + '\\PenaltyBoxConfig.json';
-      const configContent = JSON.stringify(bundle, null, 2);
-      if(confirm(`Save PenaltyBoxConfig.json to:\n${configPath}?`)){ 
-        downloadToPath(configPath, configContent);
-      }
-
-      // produce a favourites-only config that conforms to the favourites schema
-      function deviceToNetworkItem(d) {
+    // Helper functions for export
+    function deviceToNetworkItem(d) {
         let addr = String(d.address || '');
         const addrMatch = addr.match(/^([^:]+):\s*(.+)$/);
         if (addrMatch && state.deviceNameCache && state.deviceNameCache[addrMatch[2]] === addrMatch[1]) {
@@ -1375,22 +1382,61 @@
         const obj = { item_type: 'network_item', name: String(name || ''), address: addr };
         if (alarm) obj.header = alarm;
         return obj;
-      }
-      function subGroupToFolder(sg){ const children = [];
+    }
+    function subGroupToFolder(sg){ const children = [];
         (sg.subGroups||[]).forEach(ch=> children.push(subGroupToFolder(ch)));
         (sg.devices||[]).forEach(dev=> children.push(deviceToNetworkItem(dev)));
         const folder = { item_type:'favourites_folder', name: String(sg.name||'') };
         if(sg.template) folder.template = sg.template;
         if(children.length) folder.children = children;
         return folder;
-      }
-      function groupToFolder(g){ const children = [];
+    }
+    function groupToFolder(g){ const children = [];
         (g.subGroups||[]).forEach(sg=> children.push(subGroupToFolder(sg)));
         (g.devices||[]).forEach(dev=> children.push(deviceToNetworkItem(dev)));
         const folder = { item_type:'favourites_folder', name: String(g.name||'') };
         if(children.length) folder.children = children;
         return folder;
+    }
+
+    async function saveToDirectory(dirHandle, relativePath, content) {
+      try {
+        const parts = relativePath.split(/[\\/]/).filter(p => p && p !== '.');
+        const filename = parts.pop();
+        let currentHandle = dirHandle;
+        for (const part of parts) {
+          currentHandle = await currentHandle.getDirectoryHandle(part, { create: true });
+        }
+        const fileHandle = await currentHandle.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        return true;
+      } catch (err) {
+        console.error('Error saving ' + relativePath, err);
+        return false;
       }
+    }
+
+    // Generate Bundle (local, no push)
+    bind('#btnGenerate','click', async ()=>{
+      if(!state.projectPath){ toast('Please set a project path first using "Project Path..." button.'); return; }
+      
+      const projectPath = state.projectPath.replace(/[\\/]+$/, '');
+
+      // Ensure favourites in the exported bundle always use the MbyE identifier as their id
+      (state.groups||[]).forEach(ensureGroupId);
+      // Prepare content
+      const bundle = {
+        version: '11.4.1',
+        createdAt: new Date().toISOString(),
+        serverIp: ($('#cfgIp').value||'').trim(),
+        projectVars: state.projectVars,
+        master: state.master,
+        favourites: state.groups,
+        templates: { local: state.templates, project: state.projectTemplates.map(t=>({ name:t.name, headers:t.headers })) }
+      };
+      const configContent = JSON.stringify(bundle, null, 2);
 
       const favouritesConfig = {
         version: '11.4.1',
@@ -1398,98 +1444,54 @@
         serverIp: ($('#cfgIp').value||'').trim(),
         folders: (state.groups||[]).map(groupToFolder)
       };
-
-      const favsPath = state.projectPath + '\\PenaltyBoxFavourites.json';
       const favsContent = JSON.stringify(favouritesConfig, null, 2);
-      if(confirm(`Save PenaltyBoxFavourites.json to:\n${favsPath}?`)){ 
-        downloadToPath(favsPath, favsContent);
-      }
-      
-      // Generate .globalx file with exception monitors to globalx_\penalty_box\ directory
+
+      let globalxXml = '';
       try {
         if(!state.master.sorts) state.master.sorts = defaultSorts();
-        
-        // Build master exception monitor (aggregates all favourites groups)
-        const masterItems = (state.groups||[]).map(g => ({
-          address: `System/Exception Monitoring/${g.id}`,
-          name: g.name,
-          priority: 1
-        }));
-        const masterMbyE = buildMbyEElement(
-          uuidGen(),
-          'Penalty Box Master',
-          'EM::Penalty Box',
-          masterItems,
-          state.master.sorts,
-          state.master.inError ?? 50,
-          state.master.errorPositions ?? 10
-        );
-        
-        // Build per-favourite exception monitors
+        const masterItems = (state.groups||[]).map(g => ({ address: `System/Exception Monitoring/${g.id}`, name: g.name, priority: 1 }));
+        const masterMbyE = buildMbyEElement(uuidGen(), 'Penalty Box Master', 'EM::Penalty Box', masterItems, state.master.sorts, state.master.inError ?? 50, state.master.errorPositions ?? 10);
         const favouriteMbyEs = (state.groups||[]).map(g => {
           const items = extractFirstLevelItems(g);
           const sorts = (g.useGlobalSettings!==false) ? state.master.sorts : (g.sorts || defaultSorts());
-          return buildMbyEElement(
-            uuidGen(),
-            g.name,
-            g.id,
-            items,
-            sorts,
-            g.inError ?? 50,
-            g.errorPositions ?? 2
-          );
+          return buildMbyEElement(uuidGen(), g.name, g.id, items, sorts, g.inError ?? 50, g.errorPositions ?? 2);
         });
-        
-        const globalxXml = buildGlobalxXml(masterMbyE, favouriteMbyEs);
-        const globalxPath = state.projectPath + '\\globalx_\\penalty_box\\penalty_box.globalx';
-        if(confirm(`Save penalty_box.globalx to:\n${globalxPath}?`)){ 
-          downloadToPath(globalxPath, globalxXml);
-        }
-      } catch(e) { console.error('Error generating .globalx file:', e); toast('Error generating .globalx: '+e.message); }
-      
-      // also generate .tmpl files for each known template (local + project) to resources\templates\ directory
+        globalxXml = buildGlobalxXml(masterMbyE, favouriteMbyEs);
+      } catch(e) { console.error('Error generating .globalx file:', e); toast('Error generating .globalx: '+e.message); return; }
+
+      const tempsToExport = [];
       try{
-        const makeContent = (tpl)=>{
-          if(Array.isArray(tpl.headers) && tpl.headers.length){
-            return tpl.headers.map(h=> String(h)).join('\n');
-          }
-          return '';
-        };
-        // only export templates that are actually referenced by the favourites
+        const makeContent = (tpl)=>{ if(Array.isArray(tpl.headers) && tpl.headers.length){ return tpl.headers.map(h=> String(h)).join('\n'); } return ''; };
         const referenced = new Set();
-        (state.groups||[]).forEach(g=>{
-          const walk = (sg)=>{
-            if(sg && sg.template) referenced.add(String(sg.template));
-            (sg.subGroups||[]).forEach(ch=> walk(ch));
-          };
-          (g.subGroups||[]).forEach(sg=> walk(sg));
-        });
-        
-        // Collect all templates to export
-        const tempsToExport = [];
-        (state.templates||[]).forEach(t=>{
-          const nm = String(t.name||''); if(!nm) return;
-          if(!referenced.has(nm) && !t._userCreated) return;
-          let fname = nm || 'template';
-          if(!fname.toLowerCase().endsWith('.tmpl')) fname = fname + '.tmpl';
-          tempsToExport.push({ name: fname, content: makeContent(t) });
-        });
-        (state.projectTemplates||[]).forEach(t=>{
-          if(!referenced.has(String(t.name))) return;
-          let fname = String(t.name||'project-template');
-          if(!fname.toLowerCase().endsWith('.tmpl')) fname = fname + '.tmpl';
-          tempsToExport.push({ name: fname, content: makeContent(t) });
-        });
-        
-        if(tempsToExport.length){
-          const templatesDir = state.projectPath + '\\resources\\templates\\';
-          if(confirm(`Save ${tempsToExport.length} template file(s) to:\n${templatesDir}?`)){
-            tempsToExport.forEach(t=> downloadToPath(templatesDir + t.name, t.content));
+        (state.groups||[]).forEach(g=>{ const walk = (sg)=>{ if(sg && sg.template) referenced.add(String(sg.template)); (sg.subGroups||[]).forEach(ch=> walk(ch)); }; (g.subGroups||[]).forEach(sg=> walk(sg)); });
+        (state.templates||[]).forEach(t=>{ const nm = String(t.name||''); if(!nm) return; if(!referenced.has(nm) && !t._userCreated) return; let fname = nm; if(!fname.toLowerCase().endsWith('.tmpl')) fname = fname + '.tmpl'; tempsToExport.push({ name: fname, content: makeContent(t) }); });
+        (state.projectTemplates||[]).forEach(t=>{ if(!referenced.has(String(t.name))) return; let fname = String(t.name||'project-template'); if(!fname.toLowerCase().endsWith('.tmpl')) fname = fname + '.tmpl'; tempsToExport.push({ name: fname, content: makeContent(t) }); });
+      }catch(e){ console.error('Template export failed', e); }
+
+      // Save logic
+      if (window.showDirectoryPicker) {
+        if(!confirm(`Generate and save configuration bundle to:\n${projectPath}\n\nPlease select this folder in the next dialog to grant write permission.`)) return;
+        try {
+          const dirHandle = await window.showDirectoryPicker();
+          await saveToDirectory(dirHandle, 'PenaltyBoxConfig.json', configContent);
+          await saveToDirectory(dirHandle, 'PenaltyBoxFavourites.json', favsContent);
+          await saveToDirectory(dirHandle, 'globalx_/penalty_box/penalty_box.globalx', globalxXml);
+          for (const t of tempsToExport) {
+            await saveToDirectory(dirHandle, `resources/templates/${t.name}`, t.content);
           }
+          toast('Export complete. Files saved to selected directory.');
+        } catch(e) {
+          if(e.name !== 'AbortError') toast('Save failed: ' + e.message);
         }
-      }catch(e){ console.error('Template export failed', e); toast('Error exporting templates: '+e.message); }
-      
-      toast('Export complete. Check your project path for saved files.\nNote: File save requires folder write permissions.');
+      } else {
+        // Fallback
+        alert('Your browser does not support direct file saving. Files will be downloaded to your Downloads folder.');
+        downloadToPath(projectPath + '\\PenaltyBoxConfig.json', configContent);
+        downloadToPath(projectPath + '\\PenaltyBoxFavourites.json', favsContent);
+        downloadToPath(projectPath + '\\globalx_\\penalty_box\\penalty_box.globalx', globalxXml);
+        tempsToExport.forEach(t=> downloadToPath(projectPath + '\\resources\\templates\\' + t.name, t.content));
+        toast('Export complete (downloaded).');
+      }
     });
     
     // Helper to save files (with browser download as fallback)
