@@ -1,0 +1,17 @@
+services:
+  penalty-box-app:
+    build: .
+    container_name: penalty-box-app
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount SSH keys for Git authentication
+      # Ensure your local SSH keys are in ~/.ssh
+      - ~/.ssh:/root/.ssh:ro
+      # Persist cloned repositories (optional)
+      - ./repos:/app/repos
+    environment:
+      - ALARM_API_URL=http://host.docker.internal:8080
+    # Allow container to reach services on the host machine
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
